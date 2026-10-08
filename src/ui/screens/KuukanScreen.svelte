@@ -56,11 +56,6 @@
     app.openDraft({ kind: 'template', template });
   }
 
-  function handleOpenKuukan(id: Id) {
-    app.setQuery({ place: id });
-    app.setScreen('search');
-  }
-
   function handleEditKuukan(id: Id) {
     app.openKuukanEditor(id);
   }
@@ -111,7 +106,7 @@
   <div class="screen-header">
     <h2>クウカン</h2>
     <p class="description muted">
-      クウカンの平面図を描いて、仕切りでエリアに分けます。
+      クウカンを開くと、中のモノを見たり追加したりできます。置き場のないモノは「未設定」に入ります。
     </p>
   </div>
 
@@ -143,7 +138,13 @@
     {#if unsetKuukan && $app.doc}
       <div class="kuukan-card unset-card">
         <div class="kuukan-info">
-          <span class="kuukan-name">{UNSET_NAME}</span>
+          <button
+            type="button"
+            class="kuukan-name kuukan-name-btn"
+            onclick={() => app.openView(NIL_ID)}
+          >
+            {UNSET_NAME}
+          </button>
           <span class="chip small muted">
             {itemsWithin($app.doc, unsetKuukan.id).length}件
           </span>
@@ -153,9 +154,9 @@
           <button
             type="button"
             class="small"
-            onclick={() => handleOpenKuukan(unsetKuukan.id)}
+            onclick={() => app.openView(NIL_ID)}
           >
-            モノを見る
+            開く
           </button>
         </div>
       </div>
@@ -179,7 +180,13 @@
                 class="inline-input"
               />
             {:else}
-              <span class="kuukan-name">{kuukan.name ?? NAMELESS_NAME}</span>
+              <button
+                type="button"
+                class="kuukan-name kuukan-name-btn"
+                onclick={() => app.openView(kuukan.id)}
+              >
+                {kuukan.name ?? NAMELESS_NAME}
+              </button>
               <span class="chip small muted">
                 {itemsWithin($app.doc, kuukan.id).length}件
               </span>
@@ -203,9 +210,9 @@
               <button
                 type="button"
                 class="small"
-                onclick={() => handleOpenKuukan(kuukan.id)}
+                onclick={() => app.openView(kuukan.id)}
               >
-                モノを見る
+                開く
               </button>
               <button
                 type="button"
@@ -244,9 +251,13 @@
             <div class="kuukan-card storage-card">
               <div class="kuukan-info">
                 <div class="storage-title-block">
-                  <span class="kuukan-name">
+                  <button
+                    type="button"
+                    class="kuukan-name kuukan-name-btn"
+                    onclick={() => app.openView(kuukan.id)}
+                  >
                     {ownerItem ? ownerItem.name : (kuukan.name ?? NAMELESS_NAME)}
-                  </span>
+                  </button>
                   {#if ownerItem}
                     <span class="storage-path muted small">
                       {formatPlacePath($app.doc, ownerItem.place)}
@@ -274,9 +285,9 @@
                 <button
                   type="button"
                   class="small"
-                  onclick={() => handleOpenKuukan(kuukan.id)}
+                  onclick={() => app.openView(kuukan.id)}
                 >
-                  モノを見る
+                  開く
                 </button>
                 <button
                   type="button"
@@ -405,6 +416,24 @@
 
   .kuukan-name {
     font-weight: 600;
+  }
+
+  .kuukan-name-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    min-height: auto;
+    font-weight: 600;
+    font-size: inherit;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    border-radius: var(--radius-small);
+  }
+
+  .kuukan-name-btn:hover {
+    background: transparent;
+    text-decoration: underline;
   }
 
   .inline-input {

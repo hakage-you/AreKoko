@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { autofocus } from '../actions';
   import { getApp } from '../context';
   import { searchItems } from '../../search/search';
-  import { addItem } from '../../core/ops/items';
   import SearchBar from '../components/SearchBar.svelte';
   import ItemTable from '../components/ItemTable.svelte';
   import BulkBar from '../components/BulkBar.svelte';
@@ -11,28 +9,6 @@
   const app = getApp();
 
   const results = $derived($app.doc ? searchItems($app.doc, $app.query) : []);
-
-  let isAdding = $state(false);
-  let newItemName = $state('');
-
-  function handleAddItem(): void {
-    const trimmed = newItemName.trim();
-    if (!trimmed) return;
-    const res = app.apply((doc, ctx) =>
-      addItem(doc, { name: trimmed, place: $app.query.place }, ctx)
-    );
-    const createdId = res?.created[0];
-    if (createdId !== undefined) {
-      app.showDetail(createdId);
-      newItemName = '';
-      isAdding = false;
-    }
-  }
-
-  function handleCancelAdd(): void {
-    isAdding = false;
-    newItemName = '';
-  }
 </script>
 
 <div class="search-screen">
@@ -80,38 +56,6 @@
 
       <div class="toolbar-actions">
         <span class="count-label">{results.length}件</span>
-
-        {#if isAdding}
-          <div class="add-form">
-            <input
-              type="text"
-              placeholder="モノの名前"
-              use:autofocus
-              bind:value={newItemName}
-              onkeydown={(e) => {
-                if (e.key === 'Enter') handleAddItem();
-                if (e.key === 'Escape') handleCancelAdd();
-              }}
-            />
-            <button type="button" class="primary" onclick={handleAddItem}>
-              追加
-            </button>
-            <button type="button" onclick={handleCancelAdd}>
-              取り消し
-            </button>
-          </div>
-        {:else}
-          <button
-            type="button"
-            class="primary add-button"
-            onclick={() => {
-              isAdding = true;
-              newItemName = '';
-            }}
-          >
-            ＋モノを追加
-          </button>
-        {/if}
       </div>
     </div>
 
@@ -223,20 +167,6 @@
     white-space: nowrap;
   }
 
-  .add-button {
-    white-space: nowrap;
-  }
-
-  .add-form {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .add-form input {
-    width: 180px;
-  }
-
   .table-area {
     flex: 1;
     min-height: 0;
@@ -267,16 +197,7 @@
 
     .toolbar-actions {
       width: 100%;
-      justify-content: space-between;
-    }
-
-    .add-form {
-      flex: 1;
-    }
-
-    .add-form input {
-      flex: 1;
-      width: auto;
+      justify-content: flex-end;
     }
 
     .detail-sidebar {

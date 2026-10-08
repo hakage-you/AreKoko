@@ -40,6 +40,10 @@
         return '外形の辺を押してドラッグし、辺を動かします。';
       case 'outlineStep':
         return '外形の辺の上を押して垂直にドラッグし、段差を足します。';
+      case 'markerEdge':
+        return 'マーカーの辺を押してドラッグし、辺を動かします。';
+      case 'markerStep':
+        return 'マーカーの辺の上を押して垂直にドラッグし、段差を足します。';
     }
   });
 

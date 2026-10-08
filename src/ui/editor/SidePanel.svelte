@@ -19,7 +19,7 @@
   import { buildAreaTree } from '../../core/indexes';
   import { displayName, formatPlacePath } from '../../core/places';
   import { computeRegions } from '../../geometry/regions';
-  import { isRectangle } from '../../geometry/polygon';
+  import { isRectangle, boundingRect } from '../../geometry/polygon';
   import type { Id, Axis, Rotation } from '../../core/types';
 
   const app = getApp();
@@ -354,6 +354,13 @@
       applyToEditor(app, $app, (d) =>
         updateMarker(d, marker.id, { shape: { type: 'point', at: [cx, cy] } }),
       );
+    } else if (marker.shape.type === 'poly') {
+      const b = boundingRect(marker.shape.points);
+      const cx = Math.round((b.x0 + b.x1) / 2);
+      const cy = Math.round((b.y0 + b.y1) / 2);
+      applyToEditor(app, $app, (d) =>
+        updateMarker(d, marker.id, { shape: { type: 'point', at: [cx, cy] } }),
+      );
     }
   }
 
@@ -476,7 +483,13 @@
       </div>
 
       <div class="field-block">
-        <div class="group-label">形: {selectedSingleMarker.shape.type === 'point' ? '点' : '長方形'}</div>
+        <div class="group-label">
+          形: {selectedSingleMarker.shape.type === 'point'
+            ? '点'
+            : selectedSingleMarker.shape.type === 'rect'
+              ? '長方形'
+              : '多角形'}
+        </div>
         <button
           type="button"
           class="small"
@@ -485,6 +498,44 @@
           {selectedSingleMarker.shape.type === 'point' ? '長方形にする' : '点にする'}
         </button>
       </div>
+
+      {#if selectedSingleMarker.shape.type === 'rect' || selectedSingleMarker.shape.type === 'poly'}
+        <div class="field-block">
+          <div class="group-label">形の編集</div>
+          <div class="btn-group">
+            <button
+              type="button"
+              class="small ghost"
+              class:active={ui.tool === 'markerEdge'}
+              onclick={() => {
+                ui.tool = 'markerEdge';
+              }}
+            >
+              辺を動かす
+            </button>
+            <button
+              type="button"
+              class="small ghost"
+              class:active={ui.tool === 'markerStep'}
+              onclick={() => {
+                ui.tool = 'markerStep';
+              }}
+            >
+              段差を足す
+            </button>
+            <button
+              type="button"
+              class="small ghost"
+              class:active={ui.tool === 'select'}
+              onclick={() => {
+                ui.tool = 'select';
+              }}
+            >
+              選ぶに戻る
+            </button>
+          </div>
+        </div>
+      {/if}
 
       <div class="field-block">
         <div class="group-label">回転</div>
@@ -907,6 +958,13 @@
   .btn-group {
     display: flex;
     gap: var(--space-1);
+  }
+
+  .btn-group button.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+    font-weight: 600;
   }
 
   .btn-grid {

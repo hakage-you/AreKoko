@@ -152,7 +152,7 @@ describe('AppStore', () => {
     expect(store.state.saveStatus).toBeNull();
   });
 
-  it('newDocument: 選んだら空の文書が書かれて search、saveStatus saved', async () => {
+  it('newDocument: 選んだら空の文書が書かれて kuukans、saveStatus saved', async () => {
     const backend = new FakeBackend('my-doc.json', '', true, 1000);
     const { deps } = createTestDeps({
       pickFileToSave: async () => backend,
@@ -160,7 +160,7 @@ describe('AppStore', () => {
     const store = new AppStore(deps);
 
     await store.newDocument();
-    expect(store.state.screen).toBe('search');
+    expect(store.state.screen).toBe('kuukans');
     expect(store.state.doc).not.toBeNull();
     expect(store.state.fileName).toBe('my-doc.json');
     expect(store.state.saveStatus).toBe('saved');
@@ -169,7 +169,7 @@ describe('AppStore', () => {
     expect(backend.text).toContain('"app":"arekoko"');
   });
 
-  it('openFile: 正しい文書 → search', async () => {
+  it('openFile: 正しい文書 → kuukans（クウカンの一覧）', async () => {
     const doc = createSampleDocument();
     const backend = new FakeBackend('sample.json', serializeDocument(doc), true, 1000);
     const { deps } = createTestDeps({
@@ -182,7 +182,7 @@ describe('AppStore', () => {
     const store = new AppStore(deps);
 
     await store.openFile();
-    expect(store.state.screen).toBe('search');
+    expect(store.state.screen).toBe('kuukans');
     expect(store.state.doc).not.toBeNull();
     expect(store.state.saveStatus).toBe('saved');
     expect(store.state.dirty).toBe(false);
@@ -218,7 +218,7 @@ describe('AppStore', () => {
     expect(store.state.dialog?.kind).toBe('repair');
 
     store.approveRepair();
-    expect(store.state.screen).toBe('search');
+    expect(store.state.screen).toBe('kuukans');
     expect(store.state.dialog).toBeNull();
     expect(store.state.doc).not.toBeNull();
     expect(store.state.dirty).toBe(true);
@@ -404,7 +404,7 @@ describe('AppStore', () => {
 
     await store.closeDocument();
     expect(store.state.dialog?.kind).toBe('confirm');
-    expect(store.state.screen).toBe('search');
+    expect(store.state.screen).toBe('kuukans');
 
     const confirmDialog = store.state.dialog as ConfirmDialog;
     confirmDialog.onConfirm();
@@ -442,10 +442,10 @@ describe('AppStore', () => {
     expect(screens).toEqual(['start']);
 
     await store.newDocument();
-    expect(screens).toEqual(['start', 'search']);
+    expect(screens).toEqual(['start', 'kuukans']);
 
     unsubscribe();
     store.setScreen('settings');
-    expect(screens).toEqual(['start', 'search']);
+    expect(screens).toEqual(['start', 'kuukans']);
   });
 });

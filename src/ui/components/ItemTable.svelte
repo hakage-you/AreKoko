@@ -4,6 +4,7 @@
   import { displayName, formatPlacePath } from '../../core/places';
   import { getIndexes } from '../../core/indexes';
   import { isEmptyQuery } from '../../search/search';
+  import { drawingOffset, offsetText } from '../../view/model';
   import type { Item } from '../../core/types';
 
   interface Props {
@@ -59,12 +60,26 @@
     scrollTop = target.scrollTop;
     containerHeight = target.clientHeight;
   }
+
+  function getOffset(item: Item): { isOff: boolean; desc: string } {
+    if (!$app.doc) return { isOff: false, desc: '' };
+    const off = drawingOffset($app.doc, item.id);
+    if (!off || off.kind !== 'off') return { isOff: false, desc: '' };
+    return { isOff: true, desc: offsetText($app.doc, item.id, off) };
+  }
 </script>
 
 <div class="table-container">
   {#if $app.doc && $app.doc.membership.items.length === 0}
     <div class="empty-state">
-      <p>まだモノがありません。「＋モノを追加」から登録できます</p>
+      <p>まだモノがありません。モノはクウカンの画面から追加します</p>
+      <button
+        type="button"
+        class="small primary"
+        onclick={() => app.setScreen('kuukans')}
+      >
+        クウカンの一覧へ
+      </button>
     </div>
   {:else if items.length === 0}
     <div class="empty-state">
@@ -93,6 +108,7 @@
       <div class="col-place header-cell">置き場</div>
       <div class="col-category header-cell">カテゴリ</div>
       <div class="col-tags header-cell">タグ</div>
+      <div class="col-actions header-cell" aria-hidden="true"></div>
     </div>
 
     <div
@@ -180,6 +196,37 @@
                   </span>
                 {/each}
               </div>
+            </div>
+
+            <div class="col-actions">
+              {#if getOffset(row.item).isOff}
+                {@const offsetInfo = getOffset(row.item)}
+                <button
+                  type="button"
+                  class="offset-btn small"
+                  title={offsetInfo.desc}
+                  aria-label="ずれ：{offsetInfo.desc}"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    app.showToast('info', offsetInfo.desc);
+                  }}
+                >
+                  ⚠ずれ
+                </button>
+              {/if}
+              <button
+                type="button"
+                class="view-btn small ghost"
+                title="クウカンで見る"
+                aria-label="{row.item.name} をクウカンで見る"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  app.showInView(row.item.id);
+                }}
+              >
+                <span class="view-btn-full">クウカンで見る</span>
+                <span class="view-btn-short">見る</span>
+              </button>
             </div>
           </div>
         {/if}
@@ -354,6 +401,55 @@
     overflow: hidden;
   }
 
+  .col-actions {
+    width: 180px;
+    min-width: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: 0 var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .offset-btn {
+    min-height: 26px;
+    height: 26px;
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-small);
+    background: var(--warning-soft);
+    color: var(--warning);
+    border: 1px solid var(--warning);
+    border-radius: var(--radius-small);
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    line-height: 1;
+  }
+
+  .offset-btn:hover {
+    filter: brightness(0.95);
+  }
+
+  .view-btn {
+    min-height: 28px;
+    height: 28px;
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-small);
+    white-space: nowrap;
+    border-radius: var(--radius-small);
+  }
+
+  .view-btn-full {
+    display: inline;
+  }
+
+  .view-btn-short {
+    display: none;
+  }
+
   .truncate-text {
     display: block;
     overflow: hidden;
@@ -415,7 +511,21 @@
     }
 
     .col-name {
-      padding-right: var(--space-3);
+      padding-right: var(--space-2);
+    }
+
+    .col-actions {
+      width: auto;
+      min-width: auto;
+      gap: var(--space-1);
+    }
+
+    .view-btn-full {
+      display: none;
+    }
+
+    .view-btn-short {
+      display: inline;
     }
   }
 </style>

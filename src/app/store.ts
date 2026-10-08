@@ -8,6 +8,7 @@ import { createEmptyDocument } from '../core/document';
 import { serializeDocument } from '../core/serialize';
 import { History } from '../core/history';
 import { OpError } from '../core/ops/common';
+import { kuukanOfPlace } from '../core/places';
 import type { OpContext, OpResult } from '../core/ops/common';
 import type { FileBackend, FileStat } from '../file/backend';
 import type { SaveStatus, Timers } from '../file/session';
@@ -28,7 +29,20 @@ import {
 } from '../editor/draft';
 import { type ConfirmMode, planConfirm, confirmDraft as confirmDraftOp } from '../editor/confirm';
 
-export type Screen = 'start' | 'search' | 'kuukans' | 'editor' | 'manage' | 'settings';
+export type Screen = 'start' | 'kuukans' | 'view' | 'search' | 'editor' | 'manage' | 'settings';
+
+/** クウカンビューで開いているもの（詳細設計 段階6 5章）。 */
+export interface ViewTarget {
+  kuukan: Id;
+  /** 選んでいるエリア。 */
+  area: Id | null;
+  /** 簡易検索の文字。 */
+  quick: string;
+  /** サガシモノから来たときに強めにハイライトするモノ。 */
+  focus: Id | null;
+  /** 配置モード。 */
+  placing: boolean;
+}
 
 /** クウカン編集で開いているもの（詳細設計 段階5 7章）。 */
 export type EditorTarget =
@@ -73,6 +87,7 @@ export interface AppState {
   recent: RecentEntry[];
   supportsOverwrite: boolean;
   editor: EditorTarget | null;     // screen が 'editor' のときだけ
+  view: ViewTarget | null;         // screen が 'view' のとき（と、そこから開いたクウカン編集の間）だけ
 }
 
 export interface AppDeps {
@@ -127,6 +142,7 @@ export class AppStore {
       recent: [],
       supportsOverwrite: deps.supportsFileSystemAccess(),
       editor: null,
+      view: null,
     };
   }
 
@@ -220,7 +236,8 @@ export class AppStore {
     this.history.clear();
     this.pendingRepair = null;
     this.updateState({
-      screen: 'search',
+      screen: 'kuukans',
+      view: null,
       doc,
       fileName: backend.name,
       saveStatus: this.session.status,
@@ -290,7 +307,8 @@ export class AppStore {
       this.pendingRepair = null;
 
       this.updateState({
-        screen: 'search',
+        screen: 'kuukans',
+      view: null,
         doc: loadResult.doc,
         fileName: backend.name,
         saveStatus: this.session.status,
@@ -349,7 +367,8 @@ export class AppStore {
 
     this.history.clear();
     this.updateState({
-      screen: 'search',
+      screen: 'kuukans',
+      view: null,
       doc: this.session.doc,
       fileName: backend.name,
       saveStatus: this.session.status,
@@ -424,7 +443,8 @@ export class AppStore {
     const ed = this._state.editor;
     const editorGone = ed?.kind === 'kuukan' && !doc.membership.kuukans.some(k => k.id === ed.kuukan);
     this.updateState({
-      ...(editorGone ? { screen: 'kuukans' as const, editor: null } : {}),
+      ...this.viewAfterChange(doc),
+      ...(editorGone ? { screen: 'kuukans' as const, editor: null, view: null } : {}),
       doc,
       saveStatus: this.session.status,
       dirty: this.session.dirty,
@@ -434,6 +454,21 @@ export class AppStore {
       detail,
       selection,
     });
+  }
+
+  /** 文書が変わった後の view。開いているクウカンが消えたら一覧へ、エリアやフォーカスが消えたら外す。 */
+  private viewAfterChange(doc: ArekokoDocument): Partial<AppState> {
+    const v = this._state.view;
+    if (!v) return {};
+    if (!doc.membership.kuukans.some(k => k.id === v.kuukan)) {
+      return this._state.screen === 'view' ? { screen: 'kuukans', view: null } : { view: null };
+    }
+    const area = v.area !== null && doc.membership.areas.some(a => a.id === v.area && a.kuukan === v.kuukan) ? v.area : null;
+    const focus = v.focus !== null && doc.membership.items.some(it => it.id === v.focus) ? v.focus : null;
+    // 描画がなくなったら配置モードを終える
+    const placing = v.placing && doc.drawing.kuukans.some(d => d.kuukan === v.kuukan);
+    if (area === v.area && focus === v.focus && placing === v.placing) return {};
+    return { view: { ...v, area, focus, placing } };
   }
 
   confirm(d: Omit<ConfirmDialog, 'kind'>): void {
@@ -554,6 +589,7 @@ export class AppStore {
         this.session.reset(loadResult.doc, result);
         this.history.clear();
         this.updateState({
+          ...this.viewAfterChange(loadResult.doc),
           doc: loadResult.doc,
           saveStatus: this.session.status,
           dirty: this.session.dirty,
@@ -567,6 +603,7 @@ export class AppStore {
         this.history.clear();
         this.showToast('info', '外部での変更を修復して読み込みました');
         this.updateState({
+          ...this.viewAfterChange(this.session.doc),
           doc: this.session.doc,
           saveStatus: this.session.status,
           dirty: this.session.dirty,
@@ -633,6 +670,7 @@ export class AppStore {
       detail: null,
       selection: new Set(),
       editor: null,
+      view: null,
     });
     this.draftHistory.clear();
 
@@ -654,14 +692,94 @@ export class AppStore {
   private doSetScreen(s: Exclude<Screen, 'start' | 'editor'>): void {
     this.history.clear();
     this.draftHistory.clear();
+    const view = s === 'view' ? this.viewAfterReturn() : null;
     this.updateState({
-      screen: s,
+      screen: s === 'view' && !view ? 'kuukans' : s,
+      view,
       editor: null,
       canUndo: false,
       canRedo: false,
       highlights: new Set(),
       selection: new Set(),
     });
+  }
+
+  /** クウカン編集から戻るときの view。開いていたクウカンが消えていたら null。 */
+  private viewAfterReturn(): ViewTarget | null {
+    const v = this._state.view;
+    const doc = this._state.doc;
+    if (!v || !doc || !doc.membership.kuukans.some(k => k.id === v.kuukan)) return null;
+    const next = { ...v, ...(this.viewAfterChange(doc).view ?? {}) };
+    return next;
+  }
+
+  // ---- クウカンビュー（詳細設計 段階6 5章） ----
+
+  /** クウカンビューを開く。別のクウカンに変わるときは履歴を消す（設計 10章）。 */
+  openView(kuukan: Id, opts: { area?: Id | null; quick?: string; focus?: Id | null } = {}): void {
+    if (this._state.editor?.kind === 'draft') {
+      this.confirmDiscardDraft(() => this.doOpenView(kuukan, opts));
+      return;
+    }
+    this.doOpenView(kuukan, opts);
+  }
+
+  private doOpenView(kuukan: Id, opts: { area?: Id | null; quick?: string; focus?: Id | null }): void {
+    const doc = this._state.doc;
+    if (!doc || !doc.membership.kuukans.some(k => k.id === kuukan)) return;
+    const area = opts.area != null && doc.membership.areas.some(a => a.id === opts.area && a.kuukan === kuukan) ? opts.area : null;
+    const same = this._state.screen === 'view' && this._state.view?.kuukan === kuukan;
+    if (!same) {
+      this.history.clear();
+      this.draftHistory.clear();
+    }
+    this.updateState({
+      screen: 'view',
+      editor: null,
+      view: { kuukan, area, quick: opts.quick ?? '', focus: opts.focus ?? null, placing: false },
+      detail: null,
+      selection: new Set(),
+      ...(same ? {} : { canUndo: false, canRedo: false, highlights: new Set() }),
+    });
+  }
+
+  selectViewArea(area: Id | null): void {
+    const v = this._state.view;
+    if (!v || v.area === area) return;
+    this.updateState({ view: { ...v, area } });
+  }
+
+  setQuick(text: string): void {
+    const v = this._state.view;
+    if (!v || v.quick === text) return;
+    this.updateState({ view: { ...v, quick: text, focus: null } });
+  }
+
+  /** 配置モードの入り切り。履歴は消さない（設計 10章）。描画のないクウカンでは入らない。 */
+  setPlacing(on: boolean): void {
+    const v = this._state.view;
+    const doc = this._state.doc;
+    if (!v || !doc || v.placing === on) return;
+    if (on && !doc.drawing.kuukans.some(d => d.kuukan === v.kuukan)) return;
+    this.updateState({ view: { ...v, placing: on } });
+  }
+
+  /** 簡易検索の続きをサガシモノで（設計 8.8：文字と置き場を引き継ぐ）。 */
+  searchFromView(): void {
+    const v = this._state.view;
+    if (!v) return;
+    const text = v.quick.trim();
+    this.setQuery({ ...(text ? { text } : {}), place: v.kuukan });
+    this.setScreen('search');
+  }
+
+  /** サガシモノの結果からクウカンビューへ（設計 8.8：名前を簡易検索の文字に入れ、そのモノを強めにハイライト）。 */
+  showInView(item: Id): void {
+    const doc = this._state.doc;
+    const it = doc?.membership.items.find(i => i.id === item);
+    if (!doc || !it) return;
+    const kuukan = kuukanOfPlace(doc, it.place);
+    this.openView(kuukan, { area: it.place !== kuukan ? it.place : null, quick: it.name, focus: it.id });
   }
 
   setQuery(q: SearchQuery): void {

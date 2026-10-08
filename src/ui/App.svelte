@@ -10,6 +10,7 @@
   import StartScreen from './screens/StartScreen.svelte';
   import SearchScreen from './screens/SearchScreen.svelte';
   import KuukanScreen from './screens/KuukanScreen.svelte';
+  import ViewScreen from './screens/ViewScreen.svelte';
   import EditorScreen from './screens/EditorScreen.svelte';
   import ManageScreen from './screens/ManageScreen.svelte';
   import SettingsScreen from './screens/SettingsScreen.svelte';
@@ -106,6 +107,8 @@
         <SearchScreen />
       {:else if $app.screen === 'kuukans'}
         <KuukanScreen />
+      {:else if $app.screen === 'view'}
+        <ViewScreen />
       {:else if $app.screen === 'editor'}
         <EditorScreen />
       {:else if $app.screen === 'manage'}

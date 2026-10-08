@@ -76,7 +76,7 @@ describe('結合試験: 段階の終わりの目安 (S1〜S5)', () => {
     }
 
     app.approveRepair();
-    expect(app.state.screen).toBe('search');
+    expect(app.state.screen).toBe('kuukans');
     expect(app.state.dirty).toBe(true);
     expect(app.state.saveStatus).toBe('pending');
     expect(file.writes).toBe(0);
@@ -250,7 +250,7 @@ describe('結合試験: 段階の終わりの目安 (S1〜S5)', () => {
 
     // 1. 新しく作る
     await app.newDocument();
-    expect(app.state.screen).toBe('search');
+    expect(app.state.screen).toBe('kuukans');
     expect(file.writes).toBe(1);
 
     // 2. クウカンを作る
@@ -305,7 +305,7 @@ describe('結合試験: 段階の終わりの目安 (S1〜S5)', () => {
     expect(app.state.doc).toBeNull();
 
     await app.openFile();
-    expect(app.state.screen).toBe('search');
+    expect(app.state.screen).toBe('kuukans');
     expect(app.state.doc).toEqual(beforeCloseDoc);
 
     expectHealthy(app, file);

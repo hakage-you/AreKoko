@@ -104,20 +104,20 @@
       <button
         type="button"
         class="nav-tab ghost"
+        class:active={$app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor'}
+        aria-current={$app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor' ? 'page' : undefined}
+        onclick={() => app.setScreen('kuukans')}
+      >
+        クウカン
+      </button>
+      <button
+        type="button"
+        class="nav-tab ghost"
         class:active={$app.screen === 'search'}
         aria-current={$app.screen === 'search' ? 'page' : undefined}
         onclick={() => app.setScreen('search')}
       >
         サガシモノ
-      </button>
-      <button
-        type="button"
-        class="nav-tab ghost"
-        class:active={$app.screen === 'kuukans' || $app.screen === 'editor'}
-        aria-current={$app.screen === 'kuukans' || $app.screen === 'editor' ? 'page' : undefined}
-        onclick={() => app.setScreen('kuukans')}
-      >
-        クウカン
       </button>
       <button
         type="button"
@@ -154,20 +154,20 @@
     <button
       type="button"
       class="nav-tab ghost"
+      class:active={$app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor'}
+      aria-current={$app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor' ? 'page' : undefined}
+      onclick={() => app.setScreen('kuukans')}
+    >
+      クウカン
+    </button>
+    <button
+      type="button"
+      class="nav-tab ghost"
       class:active={$app.screen === 'search'}
       aria-current={$app.screen === 'search' ? 'page' : undefined}
       onclick={() => app.setScreen('search')}
     >
       サガシモノ
-    </button>
-    <button
-      type="button"
-      class="nav-tab ghost"
-      class:active={$app.screen === 'kuukans' || $app.screen === 'editor'}
-      aria-current={$app.screen === 'kuukans' || $app.screen === 'editor' ? 'page' : undefined}
-      onclick={() => app.setScreen('kuukans')}
-    >
-      クウカン
     </button>
     <button
       type="button"

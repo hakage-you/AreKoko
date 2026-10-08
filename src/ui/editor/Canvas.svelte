@@ -8,6 +8,7 @@
   import { buildAreaTree } from '../../core/indexes';
   import { computeRegions, leafAt, type AreaTree } from '../../geometry/regions';
   import { decomposeToRects, boundingRect, locatePoint } from '../../geometry/polygon';
+  import { shapeCenter } from '../../geometry/shape';
   import { dragRange } from '../../geometry/drag';
   import { chooseSnapStep, snap } from '../../editor/snap';
   import {
@@ -20,7 +21,7 @@
     hitMarker,
   } from '../../editor/view';
   import { moveLine, splitAt } from '../../core/ops/areas';
-  import { addMarker, moveMarkers } from '../../core/ops/markers';
+  import { addMarker, moveMarkers, updateMarker } from '../../core/ops/markers';
   import { moveEdge, addStep, edgeAt } from '../../editor/outline';
 
   const app = getApp();
@@ -268,6 +269,41 @@
     return a?.name ?? 'エリア';
   }
 
+  // マーカーの形状を点列として取得する（長方形は時計回りの4点）
+  function getMarkerPoints(m: Marker): Point[] | null {
+    if (m.shape.type === 'rect') {
+      const { x, y, w, h } = m.shape;
+      return [
+        [x, y],
+        [x + w, y],
+        [x + w, y + h],
+        [x, y + h],
+      ];
+    }
+    if (m.shape.type === 'poly') {
+      return m.shape.points;
+    }
+    return null;
+  }
+
+  // 表示上のポインタ座標を、マーカーの回転前のローカル比率座標に変換する
+  function toMarkerLocal(pRatio: Point, m: Marker): Point {
+    if (m.rotation === 0) return pRatio;
+    const center = shapeCenter(m.shape);
+    const cx = center[0] * aspect;
+    const cy = center[1];
+    const px = pRatio[0] * aspect;
+    const py = pRatio[1];
+    const rad = (-m.rotation * 45 * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const dx = px - cx;
+    const dy = py - cy;
+    const unrotX = dx * cos - dy * sin + cx;
+    const unrotY = dx * sin + dy * cos + cy;
+    return [unrotX / aspect, unrotY];
+  }
+
   // 塗り分けパレット（薄い塗り）
   const AREA_FILLS = [
     'rgba(47, 111, 94, 0.08)',
@@ -293,7 +329,24 @@
     | { kind: 'dragMarkers'; startP: Point; markerStartPositions: Map<Id, Point> }
     | { kind: 'markerRect'; startP: Point }
     | { kind: 'outlineEdge'; edgeIndex: number; startP: Point }
-    | { kind: 'outlineStep'; edgeIndex: number; at: number; side: 'start' | 'end'; isHoriz: boolean; startP: Point };
+    | { kind: 'outlineStep'; edgeIndex: number; at: number; side: 'start' | 'end'; isHoriz: boolean; startP: Point }
+    | {
+        kind: 'markerEdge';
+        markerId: Id;
+        edgeIndex: number;
+        startP: Point;
+        points: Point[];
+      }
+    | {
+        kind: 'markerStep';
+        markerId: Id;
+        edgeIndex: number;
+        at: number;
+        side: 'start' | 'end';
+        isHoriz: boolean;
+        startP: Point;
+        points: Point[];
+      };
 
   let activeDrag = $state<DragMode | null>(null);
   let pointerStartClient = $state<[number, number] | null>(null);
@@ -304,6 +357,7 @@
   let previewMarkerDelta = $state<{ dx: number; dy: number } | null>(null);
   let previewRectBounds = $state<{ x: number; y: number; w: number; h: number } | null>(null);
   let previewOutline = $state<Point[] | null>(null);
+  let previewMarkerPoints = $state<{ markerId: Id; points: Point[] } | null>(null);
 
   // タッチ操作（ピンチ）追跡
   const touchPointers = new Map<number, { x: number; y: number }>();
@@ -364,6 +418,9 @@
               posMap.set(m.id, [m.shape.at[0], m.shape.at[1]]);
             } else if (m.shape.type === 'rect') {
               posMap.set(m.id, [m.shape.x, m.shape.y]);
+            } else if (m.shape.type === 'poly') {
+              const b = boundingRect(m.shape.points);
+              posMap.set(m.id, [b.x0, b.y0]);
             }
           }
         }
@@ -451,6 +508,54 @@
           startP: pRatio,
         };
       }
+      return;
+    }
+
+    if (ui.tool === 'markerEdge' || ui.tool === 'markerStep') {
+      if (ui.selectedMarkers.length === 1) {
+        const markerId = ui.selectedMarkers[0]!;
+        const targetMarker = markers.find((m) => m.id === markerId);
+        if (targetMarker && (targetMarker.shape.type === 'rect' || targetMarker.shape.type === 'poly')) {
+          const pts = getMarkerPoints(targetMarker);
+          if (pts) {
+            const pLocal = toMarkerLocal(pRatio, targetMarker);
+            const edgeIndex = edgeAt(pts, pLocal, tol12);
+            if (edgeIndex !== null) {
+              if (ui.tool === 'markerEdge') {
+                activeDrag = {
+                  kind: 'markerEdge',
+                  markerId,
+                  edgeIndex,
+                  startP: pLocal,
+                  points: pts,
+                };
+                return;
+              } else {
+                const p1 = pts[edgeIndex]!;
+                const p2 = pts[(edgeIndex + 1) % pts.length]!;
+                const isHoriz = p1[1] === p2[1];
+                const at = isHoriz ? snap(pLocal[0], stepX) : snap(pLocal[1], stepY);
+                const side: 'start' | 'end' = isHoriz
+                  ? Math.abs(at - p2[0]) < Math.abs(at - p1[0]) ? 'end' : 'start'
+                  : Math.abs(at - p2[1]) < Math.abs(at - p1[1]) ? 'end' : 'start';
+
+                activeDrag = {
+                  kind: 'markerStep',
+                  markerId,
+                  edgeIndex,
+                  at,
+                  side,
+                  isHoriz,
+                  startP: pLocal,
+                  points: pts,
+                };
+                return;
+              }
+            }
+          }
+        }
+      }
+      activeDrag = null;
       return;
     }
   }
@@ -564,6 +669,45 @@
           : null;
       return;
     }
+
+    if (activeDrag.kind === 'markerEdge') {
+      const drag = activeDrag;
+      const targetMarker = markers.find((m) => m.id === drag.markerId);
+      if (!targetMarker) return;
+      const pLocal = toMarkerLocal(pRatio, targetMarker);
+      const pts = activeDrag.points;
+      const p1 = pts[activeDrag.edgeIndex]!;
+      const p2 = pts[(activeDrag.edgeIndex + 1) % pts.length]!;
+      const isHoriz = p1[1] === p2[1];
+      const rawDelta = isHoriz ? pLocal[1] - activeDrag.startP[1] : pLocal[0] - activeDrag.startP[0];
+      const delta = snap(rawDelta, isHoriz ? stepY : stepX);
+      const nextPoints = delta !== 0 ? moveEdge(pts, activeDrag.edgeIndex, delta) : null;
+      previewMarkerPoints = nextPoints ? { markerId: activeDrag.markerId, points: nextPoints } : null;
+      return;
+    }
+
+    if (activeDrag.kind === 'markerStep') {
+      const drag = activeDrag;
+      const targetMarker = markers.find((m) => m.id === drag.markerId);
+      if (!targetMarker) return;
+      const pLocal = toMarkerLocal(pRatio, targetMarker);
+      const rawDepth = activeDrag.isHoriz
+        ? pLocal[1] - activeDrag.startP[1]
+        : pLocal[0] - activeDrag.startP[0];
+      const depth = snap(rawDepth, activeDrag.isHoriz ? stepY : stepX);
+      const nextPoints =
+        depth !== 0
+          ? addStep(
+              activeDrag.points,
+              activeDrag.edgeIndex,
+              activeDrag.at,
+              depth,
+              activeDrag.side,
+            )
+          : null;
+      previewMarkerPoints = nextPoints ? { markerId: activeDrag.markerId, points: nextPoints } : null;
+      return;
+    }
   }
 
   function handlePointerUp(e: PointerEvent) {
@@ -584,11 +728,16 @@
     previewMarkerDelta = null;
     previewRectBounds = null;
     previewOutline = null;
+    previewMarkerPoints = null;
 
     if (!kuukanDrawing || !kuukanId) return;
 
     // クリック・タップ操作（3px 未満の移動）
     if (!wasMoved) {
+      if (ui.tool === 'markerEdge' || ui.tool === 'markerStep') {
+        return;
+      }
+
       if (ui.tool === 'select') {
         // 押した瞬間に線やマーカーに当たっていたら、その選択のまま（エリアで上書きしない）
         if (currentDrag?.kind === 'dragLine' || currentDrag?.kind === 'dragMarkers') return;
@@ -720,6 +869,60 @@
         }
         return;
       }
+
+      if (currentDrag.kind === 'markerEdge') {
+        const targetMarker = markers.find((m) => m.id === currentDrag.markerId);
+        if (targetMarker) {
+          const pLocal = toMarkerLocal(pRatio, targetMarker);
+          const pts = currentDrag.points;
+          const p1 = pts[currentDrag.edgeIndex]!;
+          const p2 = pts[(currentDrag.edgeIndex + 1) % pts.length]!;
+          const isHoriz = p1[1] === p2[1];
+          const rawDelta = isHoriz
+            ? pLocal[1] - currentDrag.startP[1]
+            : pLocal[0] - currentDrag.startP[0];
+          const delta = snap(rawDelta, isHoriz ? stepY : stepX);
+          if (delta !== 0) {
+            const nextPoints = moveEdge(pts, currentDrag.edgeIndex, delta);
+            if (nextPoints) {
+              applyToEditor(app, $app, (d) =>
+                updateMarker(d, currentDrag.markerId, {
+                  shape: { type: 'poly', points: nextPoints },
+                }),
+              );
+            }
+          }
+        }
+        return;
+      }
+
+      if (currentDrag.kind === 'markerStep') {
+        const targetMarker = markers.find((m) => m.id === currentDrag.markerId);
+        if (targetMarker) {
+          const pLocal = toMarkerLocal(pRatio, targetMarker);
+          const rawDepth = currentDrag.isHoriz
+            ? pLocal[1] - currentDrag.startP[1]
+            : pLocal[0] - currentDrag.startP[0];
+          const depth = snap(rawDepth, currentDrag.isHoriz ? stepY : stepX);
+          if (depth !== 0) {
+            const nextPoints = addStep(
+              currentDrag.points,
+              currentDrag.edgeIndex,
+              currentDrag.at,
+              depth,
+              currentDrag.side,
+            );
+            if (nextPoints) {
+              applyToEditor(app, $app, (d) =>
+                updateMarker(d, currentDrag.markerId, {
+                  shape: { type: 'poly', points: nextPoints },
+                }),
+              );
+            }
+          }
+        }
+        return;
+      }
     }
   }
 
@@ -731,6 +934,7 @@
     previewMarkerDelta = null;
     previewRectBounds = null;
     previewOutline = null;
+    previewMarkerPoints = null;
   }
 </script>
 
@@ -743,6 +947,8 @@
   class:tool-marker-rect={ui.tool === 'markerRect'}
   class:tool-outline-edge={ui.tool === 'outlineEdge'}
   class:tool-outline-step={ui.tool === 'outlineStep'}
+  class:tool-marker-edge={ui.tool === 'markerEdge'}
+  class:tool-marker-step={ui.tool === 'markerStep'}
   bind:this={containerEl}
 >
   {#if !kuukanDrawing}
@@ -921,6 +1127,30 @@
                 {m.name}
               </text>
             </g>
+          {:else if m.shape.type === 'poly'}
+            {@const center = shapeCenter(m.shape)}
+            {@const cx = center[0] * aspect}
+            {@const cy = center[1]}
+            {@const rotDeg = m.rotation * 45}
+            <g transform="rotate({rotDeg}, {cx}, {cy})">
+              <polygon
+                points={m.shape.points.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                class="marker-poly"
+                class:selected={isMarkerSelected}
+                class:not-a-place={m.notAPlace}
+                fill={m.notAPlace ? 'url(#not-a-place-stripes)' : undefined}
+                vector-effect="non-scaling-stroke"
+              />
+              <text
+                x={cx}
+                y={cy}
+                class="marker-label"
+                text-anchor="middle"
+                dominant-baseline="central"
+              >
+                {m.name}
+              </text>
+            </g>
           {/if}
         {/each}
       </g>
@@ -983,6 +1213,19 @@
                     vector-effect="non-scaling-stroke"
                   />
                 </g>
+              {:else if m.shape.type === 'poly'}
+                {@const movedPoints = m.shape.points.map((p) => [p[0] + previewMarkerDelta!.dx, p[1] + previewMarkerDelta!.dy] as Point)}
+                {@const center = shapeCenter({ type: 'poly', points: movedPoints })}
+                {@const cx = center[0] * aspect}
+                {@const cy = center[1]}
+                {@const rotDeg = m.rotation * 45}
+                <g transform="rotate({rotDeg}, {cx}, {cy})">
+                  <polygon
+                    points={movedPoints.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                    class="preview-marker-poly"
+                    vector-effect="non-scaling-stroke"
+                  />
+                </g>
               {/if}
             {/if}
           {/each}
@@ -1007,6 +1250,24 @@
             class="preview-outline"
             vector-effect="non-scaling-stroke"
           />
+        {/if}
+
+        <!-- マーカー形編集プレビュー（半透明） -->
+        {#if previewMarkerPoints}
+          {@const targetM = markers.find((m) => m.id === previewMarkerPoints?.markerId)}
+          {#if targetM}
+            {@const center = shapeCenter({ type: 'poly', points: previewMarkerPoints.points })}
+            {@const cx = center[0] * aspect}
+            {@const cy = center[1]}
+            {@const rotDeg = targetM.rotation * 45}
+            <g transform="rotate({rotDeg}, {cx}, {cy})">
+              <polygon
+                points={previewMarkerPoints.points.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                class="preview-marker-poly"
+                vector-effect="non-scaling-stroke"
+              />
+            </g>
+          {/if}
         {/if}
       </g>
     </svg>
@@ -1036,10 +1297,12 @@
   .tool-marker-rect {
     cursor: crosshair;
   }
-  .tool-outline-edge {
+  .tool-outline-edge,
+  .tool-marker-edge {
     cursor: grab;
   }
-  .tool-outline-step {
+  .tool-outline-step,
+  .tool-marker-step {
     cursor: crosshair;
   }
 
@@ -1135,19 +1398,22 @@
     fill: var(--text-muted);
   }
 
-  .marker-rect {
+  .marker-rect,
+  .marker-poly {
     fill: var(--accent-soft);
     stroke: var(--accent);
     stroke-width: 1.5px;
     cursor: pointer;
   }
 
-  .marker-rect.selected {
+  .marker-rect.selected,
+  .marker-poly.selected {
     stroke: var(--focus);
     stroke-width: 2.5px;
   }
 
-  .marker-rect.not-a-place {
+  .marker-rect.not-a-place,
+  .marker-poly.not-a-place {
     stroke: var(--text-muted);
   }
 
@@ -1182,6 +1448,15 @@
     stroke-width: 2px;
     stroke-dasharray: 4 4;
     opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .preview-marker-poly {
+    fill: var(--accent-soft);
+    fill-opacity: 0.35;
+    stroke: var(--focus);
+    stroke-width: 2px;
+    stroke-dasharray: 4 4;
     pointer-events: none;
   }
 

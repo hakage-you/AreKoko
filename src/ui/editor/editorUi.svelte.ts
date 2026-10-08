@@ -8,7 +8,9 @@ export type EditorTool =
   | 'markerPoint'
   | 'markerRect'
   | 'outlineEdge'
-  | 'outlineStep';
+  | 'outlineStep'
+  | 'markerEdge'
+  | 'markerStep';
 
 export interface EditorUi {
   tool: EditorTool;
@@ -39,11 +41,18 @@ export function createEditorUi(): EditorUi {
     },
     set tool(t: EditorTool) {
       if (tool !== t) {
+        const prev = tool;
         tool = t;
         // 道具を変えたら、選択は消す (8.1.1)
         selectedArea = null;
         selectedLine = null;
-        selectedMarkers = [];
+        const keepMarkers =
+          t === 'markerEdge' ||
+          t === 'markerStep' ||
+          ((prev === 'markerEdge' || prev === 'markerStep') && t === 'select');
+        if (!keepMarkers) {
+          selectedMarkers = [];
+        }
       }
     },
     get selectedArea() {

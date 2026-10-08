@@ -34,6 +34,7 @@ export type OpErrorCode =
   | 'notRectangle'
   | 'tooSmall'
   | 'outOfRange'
+  | 'onNotAPlace'
   | 'invalidInput';
 
 export class OpError extends Error {
