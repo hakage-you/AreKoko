@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { UNDO_KEYS, REDO_KEYS } from '../keys';
   import { getApp } from '../context';
   import { createEditorUi } from '../editor/editorUi.svelte';
   import Canvas from '../editor/Canvas.svelte';
@@ -170,8 +171,8 @@
       {/if}
       <h2 class="editor-title">{title}</h2>
       <div class="history-buttons">
-        <button type="button" class="ghost small" disabled={!canUndo} onclick={handleUndo} title="直前の操作を取り消します">元に戻す</button>
-        <button type="button" class="ghost small" disabled={!canRedo} onclick={handleRedo} title="取り消した操作をやり直します">やり直す</button>
+        <button type="button" class="ghost small" disabled={!canUndo} onclick={handleUndo} title="直前の操作を取り消します（{UNDO_KEYS}）">元に戻す</button>
+        <button type="button" class="ghost small" disabled={!canRedo} onclick={handleRedo} title="取り消した操作をやり直します（{REDO_KEYS}）">やり直す</button>
       </div>
     </div>
 

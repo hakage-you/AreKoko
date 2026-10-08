@@ -37,7 +37,9 @@
         $app.dirty ||
         $app.saveStatus === 'pending' ||
         $app.saveStatus === 'saving' ||
-        $app.saveStatus === 'conflict';
+        $app.saveStatus === 'conflict' ||
+        // 下書きは確定するまで文書の外にあり、再読み込みで消えるので、開いている間は止める
+        $app.editor?.kind === 'draft';
       if (isUnsaved) {
         event.preventDefault();
         event.returnValue = '';

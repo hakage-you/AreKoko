@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { UNDO_KEYS, REDO_KEYS } from '../keys';
   import { getApp } from '../context';
 
   const app = getApp();
@@ -137,8 +138,8 @@
 
       {#if showHistory}
         <div class="history-actions" role="group" aria-label="元に戻す・やり直す">
-          <button type="button" class="ghost small" disabled={!$app.canUndo} onclick={() => app.undo()} title="直前の操作を取り消します">元に戻す</button>
-          <button type="button" class="ghost small" disabled={!$app.canRedo} onclick={() => app.redo()} title="取り消した操作をやり直します">やり直す</button>
+          <button type="button" class="ghost small" disabled={!$app.canUndo} onclick={() => app.undo()} title="直前の操作を取り消します（{UNDO_KEYS}）">元に戻す</button>
+          <button type="button" class="ghost small" disabled={!$app.canRedo} onclick={() => app.redo()} title="取り消した操作をやり直します（{REDO_KEYS}）">やり直す</button>
         </div>
       {/if}
     </div>
