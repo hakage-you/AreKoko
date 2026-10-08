@@ -224,6 +224,9 @@
           >
             <div class="row-main">
               <div class="item-primary">
+                {#if storageKuukan}
+                  <span class="badge badge-storage">収納</span>
+                {/if}
                 <span class="item-name">{item.name}</span>
                 {#if item.qty !== undefined}
                   <span class="item-qty">×{item.qty}</span>
@@ -284,7 +287,7 @@
                           ui.attachTarget = null;
                         }}
                       >
-                        {isSelectedDrawing ? '描画選択中' : '描画を選ぶ'}
+                        {isSelectedDrawing ? '選択中' : '描画を選ぶ'}
                       </button>
                     {:else if isAttaching}
                       <button
@@ -434,11 +437,29 @@
 
   .item-primary {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: var(--space-1);
     font-weight: 500;
     min-width: 0;
     flex: 1;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: var(--radius-small);
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .badge-storage {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
   }
 
   .item-name {

@@ -18,7 +18,7 @@
     const ed = $app.editor;
     if (ed?.kind !== 'draft' || guideClosed) return false;
     const d = ed.draft.doc.drawing;
-    return d.partitions.length === 0 && d.markers.length === 0;
+    return d.partitions.length === 0;
   });
   const draftHasOutline = $derived.by(() => {
     const ed = $app.editor;
@@ -70,6 +70,11 @@
         const name = doc ? displayName(doc, origin.item) : '';
         return `${name}を収納にする（下書き）`;
       }
+      case 'redraw': {
+        const doc = $app.doc;
+        const name = doc ? displayName(doc, origin.source) : '';
+        return `${name}に図を描く（下書き）`;
+      }
     }
   });
 
@@ -87,8 +92,8 @@
     if (draftViolations.length > 0) return;
 
     const modes = confirmModes(ed.draft);
-    if (modes.length === 1 && modes[0] === 'create') {
-      app.confirmDraft('create');
+    if (modes.length === 1 && modes[0]) {
+      app.confirmDraft(modes[0]);
       return;
     }
 
@@ -193,7 +198,7 @@
         <div class="zoom-float" role="group" aria-label="表示">
           <button type="button" class="small" onclick={() => zoomBy(1.25)} title="拡大します（ホイール・2本指でも）" aria-label="拡大">＋</button>
           <button type="button" class="small" onclick={() => zoomBy(0.8)} title="縮小します" aria-label="縮小">−</button>
-          <button type="button" class="small" onclick={() => ui.fitRequest++} title="図の全体が見えるように戻します">全体を表示</button>
+          <button type="button" class="small" onclick={() => ui.fitRequest++} title="図の全体が見えるように戻します"><span class="fit-long">全体を表示</span><span class="fit-short">全体</span></button>
         </div>
         {#if showGuide}
           <div class="guide-card" role="note">
@@ -204,7 +209,7 @@
             <ol>
               {#if draftHasOutline}
                 <li><b>形を整える</b>：上の「辺を動かす」「段差を足す」で、L字などにできます（長方形のままでもかまいません）。</li>
-                <li><b>エリアに分ける</b>：「縦に分ける」「横に分ける」を選んで、分けたい所を押します。</li>
+                <li><b>エリアに分ける</b>：「左右に分ける」「上下に分ける」を選んで、分けたい所を押します。</li>
                 <li><b>目印を置く</b>（なくてもよい）：ドアや柱は「マーカーを置く」で。</li>
               {:else}
                 <li>外形のない下書きです。このまま確定すると、描画なしのクウカンになります。</li>
@@ -403,11 +408,23 @@
   @media (max-width: 767px) {
     .editor-body {
       flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .editor-center {
+      flex: none;
+    }
+
+    .canvas-wrapper {
+      flex: none;
+      height: 52vh;
+      min-height: 320px;
     }
 
     .side-panel-wrapper {
       width: 100%;
-      height: 320px;
+      height: auto;
+      overflow-y: visible;
       border-left: none;
       border-top: 1px solid var(--border);
     }
@@ -440,6 +457,31 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .fit-short {
+    display: none;
+  }
+
+  @media (max-width: 767.98px) {
+    .zoom-float {
+      right: var(--space-2);
+      bottom: var(--space-2);
+    }
+
+    .zoom-float button {
+      min-height: 32px;
+      min-width: 32px;
+      padding: 0 var(--space-2);
+    }
+
+    .fit-long {
+      display: none;
+    }
+
+    .fit-short {
+      display: inline;
+    }
   }
 
   .guide-card {

@@ -47,15 +47,76 @@
   );
 
   const saveButtonLabel = $derived($app.canOverwrite ? '保存' : '書き出す');
+
+  // クウカン編集の間は、編集画面の見出しの「元に戻す・やり直す」を使う（レビュー1 R-B8）
+  const showHistory = $derived($app.screen !== 'editor');
+  const onKuukan = $derived($app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor');
+
+  // ファイル名のメニュー（R-HD）
+  let fileMenuOpen = $state(false);
+  let fileMenuEl = $state<HTMLElement | null>(null);
+
+  $effect(() => {
+    if (!fileMenuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (fileMenuEl && !fileMenuEl.contains(e.target as Node)) fileMenuOpen = false;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') fileMenuOpen = false;
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  });
+
+  function menuSaveAs(): void {
+    fileMenuOpen = false;
+    void app.saveAs();
+  }
+
+  function menuClose(): void {
+    fileMenuOpen = false;
+    void app.closeDocument();
+  }
+
 </script>
+
+{#snippet tab(label: string, active: boolean, onclick: () => void, sub = false)}
+  <button
+    type="button"
+    class="nav-tab ghost"
+    class:sub
+    class:active
+    aria-current={active ? 'page' : undefined}
+    {onclick}
+  >
+    {label}
+  </button>
+{/snippet}
 
 <header class="header">
   <div class="header-bar">
     <div class="header-left">
-      <div class="file-block">
-        <span class="file-name" title={$app.fileName ?? '名称未設定'}>
-          {$app.fileName ?? '名称未設定'}
-        </span>
+      <div class="file-block" bind:this={fileMenuEl}>
+        <button
+          type="button"
+          class="file-name"
+          title="{$app.fileName ?? '名称未設定'}（押すとファイルのメニュー）"
+          aria-haspopup="menu"
+          aria-expanded={fileMenuOpen}
+          onclick={() => (fileMenuOpen = !fileMenuOpen)}
+        >
+          {$app.fileName ?? '名称未設定'}<span class="caret" aria-hidden="true">▾</span>
+        </button>
+        {#if fileMenuOpen}
+          <div class="file-menu" role="menu">
+            <button type="button" role="menuitem" onclick={menuSaveAs}>別の名前で保存</button>
+            <button type="button" role="menuitem" onclick={menuClose}>閉じる（最初の画面へ）</button>
+          </div>
+        {/if}
         {#if statusInfo.kind === 'conflict'}
           <!-- ダイアログを閉じた後でも、ここから選び直せる -->
           <button type="button" class="save-status conflict small" onclick={() => app.openConflictDialog()}>
@@ -69,124 +130,44 @@
       </div>
 
       {#if showSaveButton}
-        <button
-          type="button"
-          class="primary"
-          onclick={() => void app.save()}
-        >
+        <button type="button" class="primary small" onclick={() => void app.save()}>
           {saveButtonLabel}
         </button>
       {/if}
 
-      <div class="history-actions">
-        <button
-          type="button"
-          class="ghost"
-          disabled={!$app.canUndo}
-          onclick={() => app.undo()}
-          aria-label="元に戻す"
-        >
-          元に戻す
-        </button>
-        <button
-          type="button"
-          class="ghost"
-          disabled={!$app.canRedo}
-          onclick={() => app.redo()}
-          aria-label="やり直す"
-        >
-          やり直す
-        </button>
-      </div>
+      {#if showHistory}
+        <div class="history-actions">
+          <button type="button" class="ghost small" disabled={!$app.canUndo} onclick={() => app.undo()} title="直前の操作を取り消します">元に戻す</button>
+          <button type="button" class="ghost small" disabled={!$app.canRedo} onclick={() => app.redo()} title="取り消した操作をやり直します">やり直す</button>
+        </div>
+      {/if}
     </div>
 
-    <nav class="nav nav-pc" aria-label="画面の切り替え">
-      <button
-        type="button"
-        class="nav-tab ghost"
-        class:active={$app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor'}
-        aria-current={$app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor' ? 'page' : undefined}
-        onclick={() => app.setScreen('kuukans')}
-      >
-        クウカン
-      </button>
-      <button
-        type="button"
-        class="nav-tab ghost"
-        class:active={$app.screen === 'search'}
-        aria-current={$app.screen === 'search' ? 'page' : undefined}
-        onclick={() => app.setScreen('search')}
-      >
-        サガシモノ
-      </button>
-      <button
-        type="button"
-        class="nav-tab ghost"
-        class:active={$app.screen === 'manage'}
-        aria-current={$app.screen === 'manage' ? 'page' : undefined}
-        onclick={() => app.setScreen('manage')}
-      >
-        管理
-      </button>
-      <button
-        type="button"
-        class="nav-tab ghost"
-        class:active={$app.screen === 'settings'}
-        aria-current={$app.screen === 'settings' ? 'page' : undefined}
-        onclick={() => app.setScreen('settings')}
-      >
-        設定
-      </button>
+    <nav class="nav nav-main nav-pc" aria-label="画面の切り替え">
+      {@render tab('クウカン', onKuukan, () => app.setScreen('kuukans'))}
+      {@render tab('サガシモノ', $app.screen === 'search', () => app.setScreen('search'))}
     </nav>
 
     <div class="header-right">
-      <button
-        type="button"
-        class="ghost"
-        onclick={() => void app.closeDocument()}
-      >
-        閉じる
+      <nav class="nav nav-sub nav-pc" aria-label="管理と設定">
+        {@render tab('管理', $app.screen === 'manage', () => app.setScreen('manage'), true)}
+        {@render tab('設定', $app.screen === 'settings', () => app.setScreen('settings'), true)}
+      </nav>
+      <button type="button" class="help-btn" onclick={() => app.openHelp()} title="この画面の使い方">
+        <span aria-hidden="true">？</span><span class="help-label">ヘルプ</span>
       </button>
     </div>
   </div>
 
   <nav class="nav nav-mobile" aria-label="画面の切り替え（スマホ）">
-    <button
-      type="button"
-      class="nav-tab ghost"
-      class:active={$app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor'}
-      aria-current={$app.screen === 'kuukans' || $app.screen === 'view' || $app.screen === 'editor' ? 'page' : undefined}
-      onclick={() => app.setScreen('kuukans')}
-    >
-      クウカン
-    </button>
-    <button
-      type="button"
-      class="nav-tab ghost"
-      class:active={$app.screen === 'search'}
-      aria-current={$app.screen === 'search' ? 'page' : undefined}
-      onclick={() => app.setScreen('search')}
-    >
-      サガシモノ
-    </button>
-    <button
-      type="button"
-      class="nav-tab ghost"
-      class:active={$app.screen === 'manage'}
-      aria-current={$app.screen === 'manage' ? 'page' : undefined}
-      onclick={() => app.setScreen('manage')}
-    >
-      管理
-    </button>
-    <button
-      type="button"
-      class="nav-tab ghost"
-      class:active={$app.screen === 'settings'}
-      aria-current={$app.screen === 'settings' ? 'page' : undefined}
-      onclick={() => app.setScreen('settings')}
-    >
-      設定
-    </button>
+    <div class="mobile-main">
+      {@render tab('クウカン', onKuukan, () => app.setScreen('kuukans'))}
+      {@render tab('サガシモノ', $app.screen === 'search', () => app.setScreen('search'))}
+    </div>
+    <div class="mobile-sub">
+      {@render tab('管理', $app.screen === 'manage', () => app.setScreen('manage'), true)}
+      {@render tab('設定', $app.screen === 'settings', () => app.setScreen('settings'), true)}
+    </div>
   </nav>
 </header>
 
@@ -198,9 +179,9 @@
   }
 
   .header-bar {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-3);
     min-height: var(--header-height);
     padding: var(--space-1) var(--space-4);
@@ -210,21 +191,68 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    flex-wrap: wrap;
+    min-width: 0;
   }
 
   .file-block {
+    position: relative;
     display: flex;
     align-items: baseline;
     gap: var(--space-2);
+    min-width: 0;
   }
 
   .file-name {
     font-weight: 600;
-    max-width: 200px;
+    max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    border: none;
+    background: transparent;
+    padding: 0;
+    min-height: auto;
+    color: var(--text);
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .file-name:hover {
+    color: var(--accent);
+    background: transparent;
+  }
+
+  .caret {
+    margin-left: 2px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .file-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    padding: var(--space-1);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+
+  .file-menu button {
+    justify-content: flex-start;
+    border: none;
+    background: transparent;
+    text-align: left;
+  }
+
+  .file-menu button:hover {
+    background: var(--surface-2);
   }
 
   .save-status {
@@ -270,21 +298,56 @@
     border-radius: var(--radius);
   }
 
+  .nav-main .nav-tab {
+    min-width: 112px;
+    font-size: var(--font-size);
+  }
+
   .nav-tab.active {
     background: var(--surface-2);
     font-weight: 600;
   }
 
+  .nav-main .nav-tab.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .nav-tab.sub {
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+  }
+
+  .nav-tab.sub.active {
+    color: var(--text);
+  }
+
   .header-right {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  .help-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    padding: 0 var(--space-3);
+    font-size: var(--font-size-small);
+  }
+
+  .help-btn > span:first-child {
+    font-weight: 700;
+    color: var(--accent);
   }
 
   .nav-mobile {
     display: none;
     border-top: 1px solid var(--border);
     padding: var(--space-1) var(--space-2);
-    overflow-x: auto;
+    gap: var(--space-2);
   }
 
   @media (max-width: 767px) {
@@ -292,17 +355,58 @@
       display: none;
     }
 
-    .nav-mobile {
-      display: flex;
-      justify-content: space-around;
-    }
-
     .header-bar {
+      display: flex;
+      justify-content: space-between;
       padding: var(--space-1) var(--space-2);
     }
 
+    .header-left {
+      gap: var(--space-2);
+    }
+
     .file-name {
-      max-width: 140px;
+      max-width: 120px;
+    }
+
+    .help-label {
+      display: none;
+    }
+
+    .help-btn {
+      padding: 0 var(--space-2);
+      min-width: 36px;
+      justify-content: center;
+    }
+
+    .nav-mobile {
+      display: flex;
+    }
+
+    .mobile-main {
+      display: flex;
+      flex: 2;
+      gap: var(--space-1);
+    }
+
+    .mobile-main .nav-tab {
+      flex: 1;
+    }
+
+    .mobile-main .nav-tab.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .mobile-sub {
+      display: flex;
+      flex: 1;
+      gap: var(--space-1);
+    }
+
+    .mobile-sub .nav-tab {
+      flex: 1;
+      padding: 0 var(--space-1);
     }
   }
 </style>

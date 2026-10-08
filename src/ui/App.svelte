@@ -11,6 +11,7 @@
   import SearchScreen from './screens/SearchScreen.svelte';
   import KuukanScreen from './screens/KuukanScreen.svelte';
   import ViewScreen from './screens/ViewScreen.svelte';
+  import HelpPanel from './components/HelpPanel.svelte';
   import EditorScreen from './screens/EditorScreen.svelte';
   import ManageScreen from './screens/ManageScreen.svelte';
   import SettingsScreen from './screens/SettingsScreen.svelte';
@@ -118,6 +119,8 @@
       {/if}
     </main>
   {/if}
+
+  <HelpPanel />
 
   {#if $app.dialog}
     {#if $app.dialog.kind === 'repair'}

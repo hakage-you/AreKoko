@@ -40,6 +40,12 @@
     }
   }
 
+  function handleRedraw(): void {
+    if (kuukan && !isUnset) {
+      app.openDraft({ kind: 'redraw', source: kuukan });
+    }
+  }
+
   function handleTogglePlacing(): void {
     if ($app.view?.placing) {
       ui.attachTarget = null;
@@ -135,28 +141,34 @@
     </header>
 
     <div class="view-body">
-      <div class="canvas-pane" class:empty={!hasDrawing}>
-        {#if hasDrawing}
+      {#if hasDrawing}
+        <div class="canvas-pane">
           <ViewCanvas />
-        {:else}
-          <div class="no-drawing-panel">
-            <p class="no-drawing-text">このクウカンには描画情報が設定されていません</p>
-            {#if !isUnset && kuukan}
-              <button
-                type="button"
-                class="primary"
-                onclick={handleEditKuukan}
-              >
-                クウカン編集で描く
-              </button>
+        </div>
+        <div class="list-pane">
+          <ItemList />
+        </div>
+      {:else}
+        <div class="list-pane full-width">
+          <div class="no-drawing-banner" role="status">
+            {#if isUnset}
+              <span class="banner-text">置き場が決まっていないモノです。モノの詳細で置き場を変えられます</span>
+            {:else}
+              <span class="banner-text">このクウカンには図がありません</span>
+              {#if kuukan}
+                <button
+                  type="button"
+                  class="small primary"
+                  onclick={handleRedraw}
+                >
+                  図を描く
+                </button>
+              {/if}
             {/if}
           </div>
-        {/if}
-      </div>
-
-      <div class="list-pane">
-        <ItemList />
-      </div>
+          <ItemList />
+        </div>
+      {/if}
     </div>
   </div>
 
@@ -272,23 +284,6 @@
     background: var(--bg);
   }
 
-  .no-drawing-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    color: var(--text-muted);
-    text-align: center;
-  }
-
-  .no-drawing-text {
-    margin: 0;
-    font-size: var(--font-size);
-  }
-
   .list-pane {
     width: 380px;
     min-width: 320px;
@@ -300,6 +295,33 @@
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
+  }
+
+  /* 図のないクウカン：リストが主役。広い画面で間延びしないよう、読みやすい幅で中央に */
+  .list-pane.full-width {
+    width: 100%;
+    min-width: 0;
+    max-width: 880px;
+    margin: 0 auto;
+    border-left: none;
+    flex: 1;
+  }
+
+  .no-drawing-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .banner-text {
+    line-height: var(--line-height);
   }
 
   .detail-sidebar {
@@ -337,12 +359,6 @@
       flex-shrink: 0;
     }
 
-    /* 描画のないクウカンでは案内だけなので、図の場所を取らない */
-    .canvas-pane.empty {
-      min-height: 0;
-      height: auto;
-    }
-
     .list-pane {
       width: 100%;
       max-width: none;
@@ -352,6 +368,11 @@
       border-left: none;
       border-top: 1px solid var(--border);
       flex: 1;
+    }
+
+    .list-pane.full-width {
+      border-top: none;
+      min-height: 100%;
     }
 
     .detail-sidebar {

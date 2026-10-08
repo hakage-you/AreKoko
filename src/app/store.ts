@@ -25,11 +25,16 @@ import {
   templateDraft,
   duplicateDraft,
   storageDraft,
+  redrawDraft,
   setDraftOutline,
 } from '../editor/draft';
 import { type ConfirmMode, planConfirm, confirmDraft as confirmDraftOp } from '../editor/confirm';
 
 export type Screen = 'start' | 'kuukans' | 'view' | 'search' | 'editor' | 'manage' | 'settings';
+
+/** ヘルプの項目（詳細設計 レビュー1 1章）。 */
+export type HelpTopic =
+  | 'start' | 'kuukans' | 'view' | 'placing' | 'editor' | 'draft' | 'search' | 'manage' | 'settings' | 'words';
 
 /** クウカンビューで開いているもの（詳細設計 段階6 5章）。 */
 export interface ViewTarget {
@@ -88,6 +93,7 @@ export interface AppState {
   supportsOverwrite: boolean;
   editor: EditorTarget | null;     // screen が 'editor' のときだけ
   view: ViewTarget | null;         // screen が 'view' のとき（と、そこから開いたクウカン編集の間）だけ
+  help: HelpTopic | null;          // 開いているヘルプ
 }
 
 export interface AppDeps {
@@ -143,6 +149,7 @@ export class AppStore {
       supportsOverwrite: deps.supportsFileSystemAccess(),
       editor: null,
       view: null,
+      help: null,
     };
   }
 
@@ -713,6 +720,30 @@ export class AppStore {
     return next;
   }
 
+  // ---- ヘルプ（詳細設計 レビュー1 1章） ----
+
+  /** 今の画面に合うヘルプの項目。 */
+  helpTopicForScreen(): HelpTopic {
+    const st = this._state;
+    switch (st.screen) {
+      case 'start': return 'start';
+      case 'kuukans': return 'kuukans';
+      case 'view': return st.view?.placing ? 'placing' : 'view';
+      case 'editor': return st.editor?.kind === 'draft' ? 'draft' : 'editor';
+      case 'search': return 'search';
+      case 'manage': return 'manage';
+      case 'settings': return 'settings';
+    }
+  }
+
+  openHelp(topic?: HelpTopic): void {
+    this.updateState({ help: topic ?? this.helpTopicForScreen() });
+  }
+
+  closeHelp(): void {
+    if (this._state.help !== null) this.updateState({ help: null });
+  }
+
   // ---- クウカンビュー（詳細設計 段階6 5章） ----
 
   /** クウカンビューを開く。別のクウカンに変わるときは履歴を消す（設計 10章）。 */
@@ -829,6 +860,9 @@ export class AppStore {
           break;
         case 'storage':
           draft = storageDraft(doc, origin.item, ctx);
+          break;
+        case 'redraw':
+          draft = redrawDraft(doc, origin.source, ctx);
           break;
       }
     } catch (err: unknown) {

@@ -15,6 +15,9 @@ export function confirmModes(draft: Draft): ConfirmMode[] {
   if (draft.origin.kind === 'duplicate') {
     return ['keep', 'replace'];
   }
+  if (draft.origin.kind === 'redraw') {
+    return ['replace'];
+  }
   return ['create'];
 }
 

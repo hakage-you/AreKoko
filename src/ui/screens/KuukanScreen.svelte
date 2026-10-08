@@ -11,6 +11,7 @@
   } from '../../core/ops/kuukans';
   import { TEMPLATE_LIST } from '../../editor/templates';
   import type { TemplateId } from '../../editor/draft';
+  import TemplateThumb from '../components/TemplateThumb.svelte';
 
   const app = getApp();
 
@@ -18,6 +19,7 @@
   let editingKuukanId = $state<Id | null>(null);
   let editingKuukanName = $state('');
   let showTemplateDialog = $state(false);
+  let openMenuKuukanId = $state<Id | null>(null);
 
   const topLevelKuukans = $derived.by(() => {
     const doc = $app.doc;
@@ -57,14 +59,17 @@
   }
 
   function handleEditKuukan(id: Id) {
+    closeMenu();
     app.openKuukanEditor(id);
   }
 
   function handleDuplicateKuukan(id: Id) {
+    closeMenu();
     app.openDraft({ kind: 'duplicate', source: id });
   }
 
   function startRename(kuukan: Kuukan) {
+    closeMenu();
     editingKuukanId = kuukan.id;
     editingKuukanName = kuukan.name ?? NAMELESS_NAME;
   }
@@ -79,6 +84,7 @@
   }
 
   function handleDeleteKuukan(kuukan: Kuukan) {
+    closeMenu();
     if (!$app.doc) return;
     const relocations = planDeleteKuukan($app.doc, kuukan.id);
     const displayName = kuukan.name ?? NAMELESS_NAME;
@@ -100,7 +106,43 @@
       },
     });
   }
+
+  function toggleMenu(id: Id, e: MouseEvent) {
+    e.stopPropagation();
+    openMenuKuukanId = openMenuKuukanId === id ? null : id;
+  }
+
+  function closeMenu() {
+    openMenuKuukanId = null;
+  }
+
+  function handleCardClick(id: Id, e: MouseEvent) {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, input, [role="menu"], [role="menuitem"]')) {
+      return;
+    }
+    closeMenu();
+    app.openView(id);
+  }
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape') {
+      if (openMenuKuukanId !== null) {
+        closeMenu();
+      }
+      if (showTemplateDialog) {
+        showTemplateDialog = false;
+      }
+    }
+  }}
+  onclick={() => {
+    if (openMenuKuukanId !== null) {
+      closeMenu();
+    }
+  }}
+/>
 
 <div class="kuukan-screen">
   <div class="screen-header">
@@ -136,25 +178,36 @@
   <div class="kuukans-list">
     <!-- 未設定（常に最初） -->
     {#if unsetKuukan && $app.doc}
-      <div class="kuukan-card unset-card">
+      <!-- svelte-ignore a11y_click_events_have_key_events (キーボードでは名前のボタンで開く) -->
+      <div
+        class="kuukan-card unset-card"
+        role="presentation"
+        onclick={(e) => handleCardClick(NIL_ID, e)}
+      >
         <div class="kuukan-info">
           <button
             type="button"
             class="kuukan-name kuukan-name-btn"
-            onclick={() => app.openView(NIL_ID)}
+            onclick={(e) => {
+              e.stopPropagation();
+              app.openView(NIL_ID);
+            }}
           >
             {UNSET_NAME}
           </button>
           <span class="chip small muted">
             {itemsWithin($app.doc, unsetKuukan.id).length}件
           </span>
-          <span class="chip small muted">描画なし</span>
+          <span class="chip small muted">図なし</span>
         </div>
         <div class="kuukan-actions">
           <button
             type="button"
-            class="small"
-            onclick={() => app.openView(NIL_ID)}
+            class="small primary"
+            onclick={(e) => {
+              e.stopPropagation();
+              app.openView(NIL_ID);
+            }}
           >
             開く
           </button>
@@ -165,7 +218,12 @@
     <!-- どこにも置かれていないクウカン -->
     {#if $app.doc}
       {#each customKuukans as kuukan (kuukan.id)}
-        <div class="kuukan-card">
+        <!-- svelte-ignore a11y_click_events_have_key_events (キーボードでは名前のボタンで開く) -->
+        <div
+          class="kuukan-card"
+          role="presentation"
+          onclick={(e) => handleCardClick(kuukan.id, e)}
+        >
           <div class="kuukan-info">
             {#if editingKuukanId === kuukan.id}
               <input
@@ -173,6 +231,7 @@
                 type="text"
                 bind:value={editingKuukanName}
                 onblur={() => commitRename(kuukan)}
+                onclick={(e) => e.stopPropagation()}
                 onkeydown={(e) => {
                   if (e.key === 'Enter') commitRename(kuukan);
                   if (e.key === 'Escape') editingKuukanId = null;
@@ -183,7 +242,10 @@
               <button
                 type="button"
                 class="kuukan-name kuukan-name-btn"
-                onclick={() => app.openView(kuukan.id)}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  app.openView(kuukan.id);
+                }}
               >
                 {kuukan.name ?? NAMELESS_NAME}
               </button>
@@ -191,9 +253,9 @@
                 {itemsWithin($app.doc, kuukan.id).length}件
               </span>
               {#if hasDrawing(kuukan.id)}
-                <span class="chip small accent">平面図あり</span>
+                <span class="chip small accent">図あり</span>
               {:else}
-                <span class="chip small muted">描画なし</span>
+                <span class="chip small muted">図なし</span>
               {/if}
             {/if}
           </div>
@@ -203,38 +265,68 @@
               <button
                 type="button"
                 class="small primary"
-                onclick={() => handleEditKuukan(kuukan.id)}
-              >
-                編集
-              </button>
-              <button
-                type="button"
-                class="small"
-                onclick={() => app.openView(kuukan.id)}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  app.openView(kuukan.id);
+                }}
               >
                 開く
               </button>
               <button
                 type="button"
-                class="small ghost"
-                onclick={() => handleDuplicateKuukan(kuukan.id)}
+                class="small"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  handleEditKuukan(kuukan.id);
+                }}
               >
-                複製
+                編集
               </button>
-              <button
-                type="button"
-                class="small ghost"
-                onclick={() => startRename(kuukan)}
-              >
-                名前の変更
-              </button>
-              <button
-                type="button"
-                class="small danger ghost"
-                onclick={() => handleDeleteKuukan(kuukan)}
-              >
-                削除
-              </button>
+
+              <div class="menu-container">
+                <button
+                  type="button"
+                  class="small ghost menu-trigger-btn"
+                  aria-label="ほかの操作"
+                  aria-haspopup="menu"
+                  aria-expanded={openMenuKuukanId === kuukan.id}
+                  onclick={(e) => toggleMenu(kuukan.id, e)}
+                >
+                  …
+                </button>
+                {#if openMenuKuukanId === kuukan.id}
+                  <div
+                    class="menu-dropdown"
+                    role="menu"
+                    tabindex="-1"
+                  >
+                    <button
+                      type="button"
+                      class="menu-item"
+                      role="menuitem"
+                      onclick={() => handleDuplicateKuukan(kuukan.id)}
+                    >
+                      複製
+                    </button>
+                    <button
+                      type="button"
+                      class="menu-item"
+                      role="menuitem"
+                      onclick={() => startRename(kuukan)}
+                    >
+                      名前の変更
+                    </button>
+                    <button
+                      type="button"
+                      class="menu-item danger"
+                      role="menuitem"
+                      onclick={() => handleDeleteKuukan(kuukan)}
+                    >
+                      削除
+                    </button>
+                  </div>
+                {/if}
+              </div>
             {/if}
           </div>
         </div>
@@ -248,13 +340,21 @@
         <div class="storage-list">
           {#each storageKuukans as kuukan (kuukan.id)}
             {@const ownerItem = $app.doc.membership.items.find((i) => i.id === kuukan.owner)}
-            <div class="kuukan-card storage-card">
+            <!-- svelte-ignore a11y_click_events_have_key_events (キーボードでは名前のボタンで開く) -->
+            <div
+              class="kuukan-card storage-card"
+              role="presentation"
+              onclick={(e) => handleCardClick(kuukan.id, e)}
+            >
               <div class="kuukan-info">
                 <div class="storage-title-block">
                   <button
                     type="button"
                     class="kuukan-name kuukan-name-btn"
-                    onclick={() => app.openView(kuukan.id)}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      app.openView(kuukan.id);
+                    }}
                   >
                     {ownerItem ? ownerItem.name : (kuukan.name ?? NAMELESS_NAME)}
                   </button>
@@ -268,9 +368,9 @@
                   {itemsWithin($app.doc, kuukan.id).length}件
                 </span>
                 {#if hasDrawing(kuukan.id)}
-                  <span class="chip small accent">平面図あり</span>
+                  <span class="chip small accent">図あり</span>
                 {:else}
-                  <span class="chip small muted">描画なし</span>
+                  <span class="chip small muted">図なし</span>
                 {/if}
               </div>
 
@@ -278,24 +378,52 @@
                 <button
                   type="button"
                   class="small primary"
-                  onclick={() => handleEditKuukan(kuukan.id)}
-                >
-                  編集
-                </button>
-                <button
-                  type="button"
-                  class="small"
-                  onclick={() => app.openView(kuukan.id)}
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    app.openView(kuukan.id);
+                  }}
                 >
                   開く
                 </button>
                 <button
                   type="button"
-                  class="small ghost"
-                  onclick={() => handleDuplicateKuukan(kuukan.id)}
+                  class="small"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    handleEditKuukan(kuukan.id);
+                  }}
                 >
-                  複製
+                  編集
                 </button>
+
+                <div class="menu-container">
+                  <button
+                    type="button"
+                    class="small ghost menu-trigger-btn"
+                    aria-label="ほかの操作"
+                    aria-haspopup="menu"
+                    aria-expanded={openMenuKuukanId === kuukan.id}
+                    onclick={(e) => toggleMenu(kuukan.id, e)}
+                  >
+                    …
+                  </button>
+                  {#if openMenuKuukanId === kuukan.id}
+                    <div
+                      class="menu-dropdown"
+                      role="menu"
+                      tabindex="-1"
+                    >
+                      <button
+                        type="button"
+                        class="menu-item"
+                        role="menuitem"
+                        onclick={() => handleDuplicateKuukan(kuukan.id)}
+                      >
+                        複製
+                      </button>
+                    </div>
+                  {/if}
+                </div>
               </div>
             </div>
           {/each}
@@ -306,12 +434,19 @@
 </div>
 
 {#if showTemplateDialog}
-  <div class="dialog-overlay" role="presentation">
+  <div
+    class="dialog-overlay"
+    role="presentation"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) showTemplateDialog = false;
+    }}
+  >
     <div
       class="dialog"
       role="dialog"
       aria-modal="true"
       aria-labelledby="template-dialog-title"
+      tabindex="-1"
     >
       <div class="dialog-header" id="template-dialog-title">
         テンプレートから作成
@@ -324,8 +459,11 @@
               class="template-card"
               onclick={() => handleSelectTemplate(template.id)}
             >
-              <div class="template-name">{template.name}</div>
-              <div class="template-desc muted small">{template.description}</div>
+              <TemplateThumb templateId={template.id} />
+              <div class="template-text">
+                <div class="template-name">{template.name}</div>
+                <div class="template-desc muted small">{template.description}</div>
+              </div>
             </button>
           {/each}
         </div>
@@ -400,6 +538,11 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     gap: var(--space-3);
+    cursor: pointer;
+  }
+
+  .kuukan-card:hover {
+    border-color: var(--accent);
   }
 
   .unset-card {
@@ -439,6 +582,7 @@
   .inline-input {
     flex: 1;
     min-height: 32px;
+    cursor: text;
   }
 
   .kuukan-actions {
@@ -447,6 +591,64 @@
     gap: var(--space-2);
     flex-shrink: 0;
     flex-wrap: wrap;
+  }
+
+  .menu-container {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .menu-trigger-btn {
+    min-width: 32px;
+    padding: 0 var(--space-2);
+    font-weight: bold;
+    font-size: var(--font-size);
+    line-height: 1;
+  }
+
+  .menu-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-1));
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    min-width: 120px;
+    padding: var(--space-1);
+    gap: 2px;
+  }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 32px;
+    padding: var(--space-1) var(--space-3);
+    border: none;
+    border-radius: var(--radius-small);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: var(--font-size-small);
+    text-align: left;
+    cursor: pointer;
+    justify-content: flex-start;
+  }
+
+  .menu-item:hover {
+    background: var(--surface-2);
+  }
+
+  .menu-item.danger {
+    color: var(--danger);
+  }
+
+  .menu-item.danger:hover {
+    background: var(--danger-soft);
   }
 
   .storage-section {
@@ -472,11 +674,14 @@
   .storage-title-block {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
     gap: 2px;
   }
 
   .storage-path {
     font-size: var(--font-size-small);
+    text-align: left;
   }
 
   .template-list {
@@ -487,19 +692,26 @@
 
   .template-card {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: var(--space-3) var(--space-4);
+    flex-direction: row;
+    align-items: center;
+    padding: var(--space-3);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
     text-align: left;
-    gap: var(--space-1);
+    gap: var(--space-3);
     cursor: pointer;
   }
 
   .template-card:hover {
     background: var(--surface-2);
+  }
+
+  .template-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1;
   }
 
   .template-name {
@@ -508,5 +720,32 @@
 
   .template-desc {
     line-height: var(--line-height);
+  }
+
+  @media (max-width: 767.98px) {
+    .kuukan-card {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-3);
+      padding: var(--space-3);
+    }
+
+    .kuukan-info {
+      width: 100%;
+    }
+
+    .kuukan-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    .create-form {
+      flex-direction: column;
+    }
+
+    .create-form input {
+      min-width: 0;
+      width: 100%;
+    }
   }
 </style>

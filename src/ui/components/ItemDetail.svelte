@@ -199,7 +199,7 @@
         onkeydown={(e) => {
           if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
         }}
-        placeholder="モノの名前…"
+        placeholder="名前"
       />
       <button type="button" class="close-button ghost" onclick={onClose} aria-label="詳細を閉じる">
         ✕
@@ -502,17 +502,27 @@
   }
 
   .name-input {
+    flex: 1;
+    min-width: 0;
     font-size: var(--font-size-large);
     font-weight: 600;
-    border: none;
+    border: 1px solid transparent;
+    border-bottom: 1px dotted var(--border);
+    border-radius: var(--radius-small);
     background: transparent;
-    padding: 0;
+    padding: var(--space-1) var(--space-2);
     min-height: auto;
+    color: var(--text);
+  }
+
+  .name-input:hover {
+    background: var(--surface-2);
   }
 
   .name-input:focus {
     outline: none;
-    border-bottom: 2px solid var(--focus);
+    border: 1px solid var(--focus);
+    background: var(--surface);
   }
 
   .close-button {
@@ -524,16 +534,19 @@
   .body {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    min-width: 0;
   }
 
   .section {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    min-width: 0;
   }
 
   .section-header {
@@ -549,7 +562,22 @@
   }
 
   .place-path {
-    word-break: break-all;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .field-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .chip {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+    min-height: 28px;
+    height: auto;
   }
 
   .tags-list {
@@ -566,6 +594,7 @@
     font-size: 10px;
     color: var(--text-muted);
     min-height: auto;
+    flex-shrink: 0;
   }
 
   .tag-remove:hover {
@@ -586,6 +615,7 @@
     background: var(--surface-2);
     padding: var(--space-3);
     border-radius: var(--radius);
+    min-width: 0;
   }
 
   .notice-desc {
@@ -596,6 +626,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    min-width: 0;
   }
 
   .notice-item {
@@ -607,12 +638,26 @@
     padding: var(--space-2);
     border-radius: var(--radius-small);
     border: 1px solid var(--border);
+    min-width: 0;
   }
 
   .notice-content {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    min-width: 0;
+    flex: 1;
+  }
+
+  .notice-text {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  textarea,
+  input[type='number'] {
+    max-width: 100%;
+    min-width: 0;
   }
 
   .storage-actions {
@@ -635,6 +680,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    overflow-wrap: anywhere;
   }
 
   @media (max-width: 767px) {

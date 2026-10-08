@@ -159,7 +159,7 @@
               />
             </label>
 
-            <div class="col-name" style="padding-left: {row.depth * 20}px;">
+            <div class="col-name" style="--indent: {row.depth * 20}px;">
               <div class="name-line">
                 {#if $app.highlights.has(row.item.id)}
                   <span class="badge badge-highlight">移動</span>
@@ -347,6 +347,11 @@
     cursor: pointer;
     width: 18px;
     height: 18px;
+  }
+
+  /* 字下げは中身にだけかける。列そのものの幅は変えない（flex の配分がずれて、右の列がずれるため） */
+  .col-name > :global(*) {
+    margin-left: var(--indent, 0px);
   }
 
   .col-name {

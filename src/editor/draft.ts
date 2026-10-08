@@ -1,6 +1,6 @@
 import type { ArekokoDocument, Id, KuukanDrawing, Point } from '../core/types';
 import { COORD_MAX, DEFAULT_AREA_LABEL, NIL_ID, UNSET_NAME } from '../core/constants';
-import type { OpContext } from '../core/ops/common';
+import { OpError, type OpContext } from '../core/ops/common';
 import { displayName, kuukanOfPlace } from '../core/places';
 import { validateDocument, type Violation } from '../core/validate';
 import { reframeDraft } from './outline';
@@ -12,7 +12,9 @@ export type DraftOrigin =
   | { kind: 'new' }
   | { kind: 'template'; template: TemplateId }
   | { kind: 'duplicate'; source: Id }
-  | { kind: 'storage'; item: Id };
+  | { kind: 'storage'; item: Id }
+  /** 図のないクウカンに図を描く（レビュー1 R-A1）。確定は元と置き換えるだけ。 */
+  | { kind: 'redraw'; source: Id };
 
 export interface Draft {
   origin: DraftOrigin;
@@ -162,6 +164,21 @@ export function duplicateDraft(doc: ArekokoDocument, source: Id, _ctx: OpContext
     kuukan: source,
     doc: draftDoc,
   };
+}
+
+/**
+ * 図のないクウカンに図を描くための下書き。元のクウカンを写し（ID はそのまま）、長方形の外形を付ける。
+ * 確定は元と置き換えるだけなので、ID・名前・持ち主・中のモノはそのまま、外形と仕切りとマーカーが付く。
+ */
+export function redrawDraft(doc: ArekokoDocument, source: Id, ctx: OpContext): Draft {
+  if (source === NIL_ID) {
+    throw new OpError('reserved', '未設定のクウカンには図を描けません');
+  }
+  if (doc.drawing.kuukans.some(k => k.kuukan === source)) {
+    throw new OpError('invalidInput', 'このクウカンにはもう図があります。形を変えるには複製してください');
+  }
+  const base = duplicateDraft(doc, source, ctx);
+  return { ...addDraftOutline(base), origin: { kind: 'redraw', source } };
 }
 
 /**

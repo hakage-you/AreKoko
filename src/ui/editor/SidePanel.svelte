@@ -610,7 +610,7 @@
 
       {#if canSplitEven}
         <div class="field-block">
-          <label for="split-even-n">N等分</label>
+          <label for="split-even-n">同じ大きさに分ける</label>
           <div class="split-controls">
             <select id="split-even-n" bind:value={splitEvenN} class="split-select">
               <option value={2}>2等分</option>
@@ -628,15 +628,17 @@
                 type="button"
                 class="small"
                 onclick={() => handleSplitEven('y')}
+                title="横の線で、上から下へ同じ高さに分けます"
               >
-                縦に並べる
+                上下に分ける
               </button>
               <button
                 type="button"
                 class="small"
                 onclick={() => handleSplitEven('x')}
+                title="縦の線で、左から右へ同じ幅に分けます"
               >
-                横に並べる
+                左右に分ける
               </button>
             </div>
           </div>

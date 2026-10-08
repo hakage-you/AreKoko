@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { NIL_ID } from '../../core/constants';
   import { getApp } from '../context';
   import { getEditorUi } from './editorUi.svelte';
   import { editorDoc, editorKuukan, applyToEditor } from './target';
@@ -953,7 +954,12 @@
 >
   {#if !kuukanDrawing}
     <div class="no-drawing-placeholder">
-      <p class="no-drawing-text">このクウカンには描画情報が設定されていません</p>
+      <p class="no-drawing-text">このクウカンには図がありません</p>
+      {#if $app.editor?.kind === 'kuukan' && $app.editor.kuukan !== NIL_ID}
+        {@const source = $app.editor.kuukan}
+        <button type="button" class="primary" onclick={() => app.openDraft({ kind: 'redraw', source })}>図を描く</button>
+        <p class="no-drawing-note">下書きが開きます。確定すると、このクウカンに図が付きます（中のモノはそのまま）。</p>
+      {/if}
     </div>
   {:else}
     <svg
@@ -1317,6 +1323,8 @@
 
   .no-drawing-placeholder {
     display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
     align-items: center;
     justify-content: center;
     width: 100%;
@@ -1329,6 +1337,14 @@
     margin: 0;
     color: var(--text-muted);
     font-size: var(--font-size);
+  }
+
+  .no-drawing-note {
+    margin: 0;
+    max-width: 360px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-small);
   }
 
   /* 目盛り */

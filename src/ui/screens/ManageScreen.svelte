@@ -194,7 +194,7 @@
                   class="small ghost"
                   onclick={() => startTagRename(tag)}
                 >
-                  変更
+                  名前の変更
                 </button>
                 <button
                   type="button"
@@ -269,7 +269,7 @@
                   class="small ghost"
                   onclick={() => startCatRename(cat)}
                 >
-                  変更
+                  名前の変更
                 </button>
                 <button
                   type="button"

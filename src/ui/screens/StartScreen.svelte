@@ -23,7 +23,9 @@
   <div class="start-card">
     <header class="app-hero">
       <h1 class="app-title">アレココ</h1>
-      <p class="app-tagline">物の置き場所を、自分で描いた間取りとリストで管理します</p>
+      <p class="app-tagline">
+        物の置き場所を、自分で描いた間取りとリストで管理します。データはあなたが選んだファイル（JSON）にだけ保存され、どこにも送られません。
+      </p>
     </header>
 
     <div class="primary-actions">
@@ -40,6 +42,16 @@
         onclick={() => void app.openFile()}
       >
         ファイルを開く
+      </button>
+    </div>
+
+    <div class="help-action">
+      <button
+        type="button"
+        class="ghost"
+        onclick={() => app.openHelp('start')}
+      >
+        使い方
       </button>
     </div>
 
@@ -132,6 +144,11 @@
     flex: 1;
     font-size: var(--font-size-large);
     padding: var(--space-3) var(--space-4);
+  }
+
+  .help-action {
+    display: flex;
+    justify-content: center;
   }
 
   .overwrite-warning {

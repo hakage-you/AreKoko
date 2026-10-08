@@ -3,7 +3,7 @@
   import { getViewUi } from './viewUi.svelte';
   import type { Id, Item, ItemDrawing, Marker, Partition, Point, Shape } from '../../core/types';
   import { COORD_MAX } from '../../core/constants';
-  import type { Polygon } from '../../geometry/types';
+  import type { Polygon, Rect } from '../../geometry/types';
   import { buildAreaTree } from '../../core/indexes';
   import { computeRegions, leafAt, type AreaTree } from '../../geometry/regions';
   import { decomposeToRects, boundingRect, locatePoint } from '../../geometry/polygon';
@@ -325,24 +325,20 @@
     return [snap(p[0], stepX), snap(p[1], stepY)];
   }
 
-  // エリア名ラベルの位置（最大長方形の中心）
-  function getAreaLabelCenter(poly: Polygon): Point {
+  // エリア名ラベルの位置（最も左上の長方形）
+  function getTopLeftRect(poly: Polygon): Rect {
     const rects = decomposeToRects(poly);
     if (rects.length === 0) {
-      const b = boundingRect(poly);
-      return [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
+      return boundingRect(poly);
     }
     let best = rects[0]!;
-    let bestArea = (best.x1 - best.x0) * (best.y1 - best.y0);
     for (let i = 1; i < rects.length; i++) {
       const r = rects[i]!;
-      const area = (r.x1 - r.x0) * (r.y1 - r.y0);
-      if (area > bestArea) {
-        bestArea = area;
+      if (r.y0 < best.y0 || (r.y0 === best.y0 && r.x0 < best.x0)) {
         best = r;
       }
     }
-    return [(best.x0 + best.x1) / 2, (best.y0 + best.y1) / 2];
+    return best;
   }
 
   function areaDisplayName(nodeId: Id): string {
@@ -948,7 +944,7 @@
   const hint = $derived.by((): { what: string; how: string } => {
     if (!isPlacing) {
       return {
-        what: 'エリアを押すと、そのエリアのモノが右に並びます',
+        what: 'エリアを押すと、そのエリアのモノがリストに並びます',
         how: 'もう一度押すと元に戻ります。収納の描画を押すと「開く」が出ます。描画を付けたり動かしたりするには、上の「配置モード」へ。',
       };
     }
@@ -977,8 +973,8 @@
 </script>
 
 <div class="view-canvas-container" bind:this={containerEl}>
-  <!-- 道具の列（図の上） -->
-  {#if isPlacing && (ui.attachTarget !== null || ui.selectedDrawing !== null)}
+  <!-- 道具の列（配置モードの間はいつも出す） -->
+  {#if isPlacing}
     <div class="view-toolbar" role="toolbar" aria-label="配置モードの道具">
       {#if ui.attachTarget !== null}
         <div class="tool-group">
@@ -1014,18 +1010,31 @@
             <button type="button" class="tool-btn" onclick={() => { ui.selectedDrawing = null; ui.message = null; }} title="選ぶのをやめます">選ぶのをやめる</button>
           </div>
         </div>
+      {:else}
+        <div class="toolbar-placeholder">
+          右（スマホでは下）のリストで『描画を付ける』を押すか、図の描画を押して選びます
+        </div>
       {/if}
     </div>
   {/if}
 
-  <!-- 案内の帯 -->
-  <div class="view-message-bar" class:has-error={ui.message !== null} aria-live="polite">
-    {#if ui.message !== null}
-      <span class="hint-what">{ui.message}</span>
-    {:else}
-      <span class="hint-what">{hint.what}</span>
-      {#if hint.how}<span class="hint-how">{hint.how}</span>{/if}
-    {/if}
+  <!-- 案内の帯（1行表示。how は title に入れ、右端に「？」ボタン） -->
+  <div
+    class="view-message-bar"
+    class:has-error={ui.message !== null}
+    aria-live="polite"
+    title={ui.message ?? (hint.how ? `${hint.what} — ${hint.how}` : hint.what)}
+  >
+    <span class="hint-what">{ui.message ?? hint.what}</span>
+    <button
+      type="button"
+      class="hint-help-btn"
+      onclick={() => app.openHelp()}
+      title="ヘルプを見る"
+      aria-label="ヘルプ"
+    >
+      ？
+    </button>
   </div>
 
   <!-- 図の表示領域 -->
@@ -1034,7 +1043,10 @@
       <div class="zoom-float" role="group" aria-label="表示">
         <button type="button" class="small" onclick={zoomIn} title="拡大します（ホイール・2本指でも）" aria-label="拡大">＋</button>
         <button type="button" class="small" onclick={zoomOut} title="縮小します" aria-label="縮小">−</button>
-        <button type="button" class="small" onclick={fitAll} title="図の全体が見えるように戻します">全体を表示</button>
+        <button type="button" class="small" onclick={fitAll} title="図の全体が見えるように戻します">
+          <span class="fit-label-full">全体を表示</span>
+          <span class="fit-label-short">全体</span>
+        </button>
       </div>
     {/if}
     {#if !kuukanDrawing}
@@ -1081,7 +1093,9 @@
               {@const poly = regions.get(leafId)}
               {#if poly}
                 {@const ptsStr = poly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
-                {@const center = getAreaLabelCenter(poly)}
+                {@const rect = getTopLeftRect(poly)}
+                {@const labelX = rect.x0 * aspect + 8 / ui.view.scale}
+                {@const labelY = rect.y0 + 8 / ui.view.scale}
                 {@const isAreaHighlighted = Boolean(quickResult && (quickResult.perPlace.get(leafId) ?? 0) > 0)}
                 <polygon
                   points={ptsStr}
@@ -1092,11 +1106,11 @@
                   vector-effect="non-scaling-stroke"
                 />
                 <text
-                  x={center[0] * aspect}
-                  y={center[1]}
+                  x={labelX}
+                  y={labelY}
                   class="area-label"
-                  text-anchor="middle"
-                  dominant-baseline="central"
+                  text-anchor="start"
+                  dominant-baseline="hanging"
                 >
                   {areaDisplayName(leafId)}
                 </text>
@@ -1198,25 +1212,41 @@
           {/each}
         </g>
 
-        <!-- 5. 件数表示（V4） -->
+        <!-- 5. 件数表示（V4・R-B6） -->
         <g class="counts-layer">
-          <!-- 葉のエリアの件数（エリア名の下） -->
+          <!-- 葉のエリアの件数（エリア名のすぐ下に背景つきの小さな札） -->
           {#if regions}
             {#each leafNodes as leafId}
               {@const count = placeCounts.get(leafId) ?? 0}
               {#if count > 0}
                 {@const poly = regions.get(leafId)}
                 {#if poly}
-                  {@const center = getAreaLabelCenter(poly)}
-                  <text
-                    x={center[0] * aspect}
-                    y={center[1] + 16 / ui.view.scale}
-                    class="leaf-count-text"
-                    text-anchor="middle"
-                    dominant-baseline="central"
-                  >
-                    {count}件
-                  </text>
+                  {@const rect = getTopLeftRect(poly)}
+                  {@const badgeX = rect.x0 * aspect + 8 / ui.view.scale}
+                  {@const badgeY = rect.y0 + 8 / ui.view.scale + 20 / ui.view.scale}
+                  {@const countStr = `${count}件`}
+                  {@const badgeW = (16 + countStr.length * 8) / ui.view.scale}
+                  {@const badgeH = 18 / ui.view.scale}
+                  <g class="area-count-badge">
+                    <rect
+                      x={badgeX}
+                      y={badgeY}
+                      width={badgeW}
+                      height={badgeH}
+                      rx={4 / ui.view.scale}
+                      class="area-count-rect"
+                      vector-effect="non-scaling-stroke"
+                    />
+                    <text
+                      x={badgeX + badgeW / 2}
+                      y={badgeY + badgeH / 2}
+                      class="area-count-text"
+                      text-anchor="middle"
+                      dominant-baseline="central"
+                    >
+                      {countStr}
+                    </text>
+                  </g>
                 {/if}
               {/if}
             {/each}
@@ -1556,15 +1586,22 @@
     background: var(--bg);
   }
 
-  /* 道具の列（配置モードで、相手がいるときだけ） */
+  /* 道具の列（配置モードの間はいつも1行固定の高さで出す） */
   .view-toolbar {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: var(--space-4);
-    padding: var(--space-2) var(--space-3);
+    padding: 0 var(--space-3);
+    height: 52px;
+    min-height: 52px;
+    max-height: 52px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    flex-shrink: 0;
     z-index: 5;
   }
 
@@ -1572,6 +1609,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    flex-shrink: 0;
   }
 
   .group-title {
@@ -1586,15 +1624,18 @@
   .group-buttons {
     display: flex;
     gap: var(--space-1);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .tool-btn {
-    min-height: 34px;
+    min-height: 30px;
+    height: 30px;
     padding: 0 var(--space-3);
     font-size: var(--font-size-small);
     border: 1px solid var(--border);
     background: var(--surface-2);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .tool-btn.active {
@@ -1602,6 +1643,13 @@
     color: var(--accent);
     border-color: var(--accent);
     font-weight: 600;
+  }
+
+  .toolbar-placeholder {
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+    white-space: nowrap;
+    line-height: 52px;
   }
 
   .zoom-float {
@@ -1618,26 +1666,65 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
-  /* 案内の1行 */
+  .fit-label-full {
+    display: inline;
+  }
+
+  .fit-label-short {
+    display: none;
+  }
+
+  /* 案内の1行（what だけ。how は title、右端に「？」ボタン） */
   .view-message-bar {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0 var(--space-2);
-    padding: var(--space-1) var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
     background: var(--accent-soft);
     border-left: 3px solid var(--accent);
     border-bottom: 1px solid var(--border);
     font-size: var(--font-size-small);
     line-height: var(--line-height);
+    flex-shrink: 0;
+    overflow: hidden;
+    white-space: nowrap;
   }
 
   .hint-what {
     font-weight: 600;
     color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
   }
 
-  .hint-how {
-    color: var(--text-muted);
+  .hint-help-btn {
+    min-height: 24px;
+    height: 24px;
+    width: 24px;
+    min-width: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-small);
+    font-weight: 600;
+    border-radius: var(--radius-small);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .hint-help-btn:hover {
+    background: var(--surface-2);
   }
 
   .view-message-bar.has-error {
@@ -1648,7 +1735,6 @@
   .view-message-bar.has-error .hint-what {
     color: var(--warning);
   }
-
 
   /* SVG ラッパー */
   .svg-wrapper {
@@ -1693,7 +1779,7 @@
     cursor: pointer;
   }
 
-  /* 図の中の文字は、拡大率にかかわらず画面の上で同じ大きさにする（--u は画面の1pxに当たる図の座標の長さ） */
+  /* エリア名は領域の最も左上の長方形の左上から画面で 8px 内側に左寄せ */
   .area-label {
     font-family: var(--font);
     font-size: calc(16px * var(--u, 1));
@@ -1756,10 +1842,21 @@
     user-select: none;
   }
 
-  /* 件数表示（V4） */
-  .leaf-count-text {
+  /* 件数表示（V4・R-B6） */
+  .area-count-badge {
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .area-count-rect {
+    fill: var(--surface);
+    stroke: var(--border);
+    stroke-width: 1px;
+  }
+
+  .area-count-text {
     font-family: var(--font);
-    font-size: calc(12px * var(--u, 1));
+    font-size: calc(11px * var(--u, 1));
     fill: var(--text-muted);
     font-weight: 600;
     pointer-events: none;
@@ -1966,5 +2063,33 @@
     stroke-width: 2px;
     stroke-dasharray: 4 4;
     pointer-events: none;
+  }
+
+  @media (max-width: 767.98px) {
+    .zoom-float {
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .zoom-float button {
+      min-height: 32px;
+      height: 32px;
+      padding: 0 var(--space-2);
+      font-size: var(--font-size-small);
+    }
+
+    .zoom-float button:not(:last-child) {
+      width: 32px;
+      min-width: 32px;
+      padding: 0;
+    }
+
+    .fit-label-full {
+      display: none;
+    }
+
+    .fit-label-short {
+      display: inline;
+    }
   }
 </style>
