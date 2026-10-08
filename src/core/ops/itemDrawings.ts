@@ -43,93 +43,6 @@ function translateShape(shape: Shape, dx: number, dy: number): Shape {
   throw new OpError('invalidInput', `未対応の形状です: ${JSON.stringify(_exhaustive)}`);
 }
 
-/**
- * 指定した座標 p が「置き場にしない」マーカーの上にあるかを判定する。
- * 詳細設計 4章の onNotAPlace の定義に従い、notAPlace が true の長方形・多角形マーカーの内側または辺の上を上とみなす。
- * 段階6の簡略化として、マーカーの回転は「回転が 0・2・4・6（90度の倍数）のときは回した外接長方形、45度の奇数倍のときは回す前の形」で判定する。
- */
-export function notAPlaceMarkerAt(
-  doc: ArekokoDocument,
-  kuukan: Id,
-  p: Point,
-): Marker | null {
-  // 回転は表示の座標（x に縦横比を掛けた座標）で掛けるので、比率の座標に戻すには縦横比が要る（設計 7.7）
-  const aspect = doc.drawing.kuukans.find(k => k.kuukan === kuukan)?.aspect ?? 1;
-  for (const marker of doc.drawing.markers) {
-    if (marker.kuukan !== kuukan || !marker.notAPlace) {
-      continue;
-    }
-    if (marker.shape.type === 'point') {
-      continue;
-    }
-
-    const rot = marker.rotation ?? 0;
-    if (rot === 0 || rot === 2 || rot === 4 || rot === 6) {
-      // 90度の倍数のときは回した外接長方形
-      let minX: number;
-      let maxX: number;
-      let minY: number;
-      let maxY: number;
-
-      if (marker.shape.type === 'rect') {
-        minX = marker.shape.x;
-        maxX = marker.shape.x + marker.shape.w;
-        minY = marker.shape.y;
-        maxY = marker.shape.y + marker.shape.h;
-      } else {
-        const br = boundingRect(marker.shape.points);
-        minX = br.x0;
-        maxX = br.x1;
-        minY = br.y0;
-        maxY = br.y1;
-      }
-
-      const cx = (minX + maxX) / 2;
-      const cy = (minY + maxY) / 2;
-      const w = maxX - minX;
-      const h = maxY - minY;
-
-      let rx0: number;
-      let rx1: number;
-      let ry0: number;
-      let ry1: number;
-
-      if (rot === 2 || rot === 6) {
-        // 90度または270度回転：表示の座標で幅（w×縦横比）と高さ（h）が入れ替わる。
-        // 比率の座標に戻すと、幅は h / 縦横比、高さは w × 縦横比
-        rx0 = cx - h / aspect / 2;
-        rx1 = cx + h / aspect / 2;
-        ry0 = cy - (w * aspect) / 2;
-        ry1 = cy + (w * aspect) / 2;
-      } else {
-        // 0度または180度回転
-        rx0 = minX;
-        rx1 = maxX;
-        ry0 = minY;
-        ry1 = maxY;
-      }
-
-      if (p[0] >= rx0 && p[0] <= rx1 && p[1] >= ry0 && p[1] <= ry1) {
-        return marker;
-      }
-    } else {
-      // 45度の奇数倍のときは回す前の形
-      if (marker.shape.type === 'rect') {
-        const s = marker.shape;
-        if (p[0] >= s.x && p[0] <= s.x + s.w && p[1] >= s.y && p[1] <= s.y + s.h) {
-          return marker;
-        }
-      } else if (marker.shape.type === 'poly') {
-        const loc = locatePoint(marker.shape.points, p);
-        if (loc === 'inside' || loc === 'boundary') {
-          return marker;
-        }
-      }
-    }
-  }
-
-  return null;
-}
 
 /**
  * モノに描画を設定する（または置き換える）。
@@ -174,10 +87,6 @@ export function setItemDrawing(
   }
 
   const center = shapeCenter(input.shape);
-  const blockedMarker = notAPlaceMarkerAt(doc, kuukanId, center);
-  if (blockedMarker) {
-    throw new OpError('onNotAPlace', `マーカー「${blockedMarker.name}」の上には置けません`);
-  }
 
   const newDrawing: ItemDrawing = {
     item,
@@ -237,10 +146,6 @@ export function moveItemDrawing(
   const newShape = translateShape(existing.shape, dx, dy);
   const newCenter = shapeCenter(newShape);
   const kuukanId = kuukanOfPlace(doc, itemObj.place);
-  const blockedMarker = notAPlaceMarkerAt(doc, kuukanId, newCenter);
-  if (blockedMarker) {
-    throw new OpError('onNotAPlace', `マーカー「${blockedMarker.name}」の上には置けません`);
-  }
 
   const updated: ItemDrawing = {
     ...existing,
@@ -320,10 +225,6 @@ export function reshapeItemDrawing(
 
   const center = shapeCenter(shape);
   const kuukanId = kuukanOfPlace(doc, itemObj.place);
-  const blockedMarker = notAPlaceMarkerAt(doc, kuukanId, center);
-  if (blockedMarker) {
-    throw new OpError('onNotAPlace', `マーカー「${blockedMarker.name}」の上には置けません`);
-  }
 
   const updated: ItemDrawing = {
     ...existing,

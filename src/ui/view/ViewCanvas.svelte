@@ -1065,26 +1065,6 @@
         onpointerup={handlePointerUp}
         onpointercancel={handlePointerCancel}
       >
-        <defs>
-          <!-- 置き場にしないマーカー用斜線パターン -->
-          <pattern
-            id="view-not-a-place-stripes"
-            width="10"
-            height="10"
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(45)"
-          >
-            <line
-              x1="0"
-              y1="0"
-              x2="0"
-              y2="10"
-              stroke="var(--text-muted)"
-              stroke-width="2"
-              stroke-opacity="0.6"
-            />
-          </pattern>
-        </defs>
 
         <!-- 1. エリアの領域 -->
         <g class="areas-layer">
@@ -1162,12 +1142,8 @@
                 cy={my}
                 r={7 / ui.view.scale}
                 class="marker-point"
-                class:not-a-place={m.notAPlace}
                 vector-effect="non-scaling-stroke"
               >
-                {#if m.notAPlace}
-                  <title>置き場にしない</title>
-                {/if}
               </circle>
               <text
                 x={mx * aspect}
@@ -1190,13 +1166,8 @@
                   width={w * aspect}
                   height={h}
                   class="marker-rect"
-                  class:not-a-place={m.notAPlace}
-                  fill={m.notAPlace ? 'url(#view-not-a-place-stripes)' : undefined}
                   vector-effect="non-scaling-stroke"
                 >
-                  {#if m.notAPlace}
-                    <title>置き場にしない</title>
-                  {/if}
                 </rect>
                 <text
                   x={cx}
@@ -1819,9 +1790,6 @@
     stroke-width: 2px;
   }
 
-  .marker-point.not-a-place {
-    fill: var(--text-muted);
-  }
 
   .marker-rect {
     fill: var(--accent-soft);
@@ -1829,9 +1797,6 @@
     stroke-width: 1.5px;
   }
 
-  .marker-rect.not-a-place {
-    stroke: var(--text-muted);
-  }
 
   .marker-label {
     font-family: var(--font);

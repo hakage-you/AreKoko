@@ -4,7 +4,6 @@ import type { ArekokoDocument, Id, Item, Marker, Point } from '../core/types';
 import { NIL_ID, UNSET_NAME } from '../core/constants';
 import { buildAreaTree, getIndexes } from '../core/indexes';
 import { displayName, kuukanOfPlace } from '../core/places';
-import { notAPlaceMarkerAt } from '../core/ops/itemDrawings';
 import { shapeCenter } from '../geometry/shape';
 import { computeRegions, leafAt } from '../geometry/regions';
 import { locatePoint } from '../geometry/polygon';
@@ -217,17 +216,6 @@ export function offsetText(
   return `所属：${placeName}（描画は${drawnInName}の上にあります）`;
 }
 
-/**
- * 置き場にしないマーカーの上かを判定する。
- * 中心が図形の内側か辺の上なら上とみなす（点のマーカーは対象外）。
- */
-export function onNotAPlace(
-  doc: ArekokoDocument,
-  kuukan: Id,
-  p: Point,
-): Marker | null {
-  return notAPlaceMarkerAt(doc, kuukan, p);
-}
 
 /**
  * 簡易検索の集計を行う。

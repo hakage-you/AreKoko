@@ -35,7 +35,7 @@ describe('templates', () => {
     expect(door.notAPlace).toBe(false);
   });
 
-  it('livingL の呼び名と柱マーカー (notAPlace)', () => {
+  it('livingL の呼び名と柱マーカー', () => {
     const ctx = createTestContext();
     const draft = buildTemplate('livingL', ctx);
     const k = draft.doc.membership.kuukans.find(ku => ku.id === draft.kuukan)!;
@@ -43,7 +43,7 @@ describe('templates', () => {
 
     const pillar = draft.doc.drawing.markers.find(m => m.name === '柱')!;
     expect(pillar).toBeDefined();
-    expect(pillar.notAPlace).toBe(true);
+    expect(pillar.notAPlace).toBe(false); // 「置き場にしない」はなくした（ふつうの目印）
   });
 
   it('shelf3 は段1〜段3の3つのエリアを持つ', () => {

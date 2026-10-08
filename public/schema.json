@@ -200,7 +200,7 @@
         "name": { "type": "string" },
         "shape": { "$ref": "#/$defs/shape" },
         "rotation": { "$ref": "#/$defs/rotation" },
-        "notAPlace": { "type": "boolean", "description": "置き場にしない（柱など）。" }
+        "notAPlace": { "type": "boolean", "description": "使われていない（古い文書との互換のために受け付ける。以前の「置き場にしない」）。" }
       }
     },
     "itemDrawing": {

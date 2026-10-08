@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { attention } from '../actions';
   import { getApp } from '../context';
   import { getEditorUi } from './editorUi.svelte';
   import { editorDoc, editorKuukan, applyToEditor } from './target';
@@ -373,14 +374,6 @@
     );
   }
 
-  function handleToggleNotAPlace() {
-    if (!selectedSingleMarker) return;
-    applyToEditor(app, $app, (d) =>
-      updateMarker(d, selectedSingleMarker.id, {
-        notAPlace: !selectedSingleMarker.notAPlace,
-      }),
-    );
-  }
 
   function handleDeleteSingleMarker() {
     if (!selectedSingleMarker) return;
@@ -407,7 +400,7 @@
 <div class="side-panel-content">
   <!-- 選択したものの詳細 -->
   {#if ui.selectedMarkers.length > 1}
-    <section class="panel-section active-selection">
+    <section class="panel-section active-selection" use:attention={ui.selectedMarkers.join(',')}>
       <div class="section-title">選んだマーカー（{ui.selectedMarkers.length}個）</div>
       <div class="field-block">
         <div class="group-label">整列</div>
@@ -467,7 +460,7 @@
       </div>
     </section>
   {:else if selectedSingleMarker}
-    <section class="panel-section active-selection">
+    <section class="panel-section active-selection" use:attention={ui.selectedMarkers.join(',')}>
       <div class="section-title">選んだマーカー</div>
       <div class="field-block">
         <label for="marker-name-input">名前</label>
@@ -552,17 +545,6 @@
         </div>
       </div>
 
-      <div class="field-block checkbox-row">
-        <label class="checkbox-label">
-          <input
-            type="checkbox"
-            checked={selectedSingleMarker.notAPlace}
-            onchange={handleToggleNotAPlace}
-          />
-          置き場にしない
-        </label>
-      </div>
-
       <div class="action-row">
         <button
           type="button"
@@ -574,7 +556,7 @@
       </div>
     </section>
   {:else if ui.selectedLine}
-    <section class="panel-section active-selection">
+    <section class="panel-section active-selection" use:attention={`${ui.selectedLine?.node}:${ui.selectedLine?.lineIndex}`}>
       <div class="section-title">選んだ仕切りの線</div>
       <p class="muted small desc-text">仕切りの線が選択されています。</p>
       <div class="action-row">
@@ -588,7 +570,7 @@
       </div>
     </section>
   {:else if selectedAreaObj}
-    <section class="panel-section active-selection">
+    <section class="panel-section active-selection" use:attention={ui.selectedArea}>
       <div class="section-title">選んだエリア</div>
       <div class="field-block">
         <label for="selected-area-name-input">名前</label>
@@ -990,25 +972,8 @@
     margin-top: var(--space-1);
   }
 
-  .checkbox-row {
-    display: flex;
-    align-items: center;
-    min-height: var(--touch);
-  }
 
-  .checkbox-label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    cursor: pointer;
-    margin: 0;
-    color: var(--text);
-  }
 
-  .checkbox-label input {
-    width: auto;
-    min-height: auto;
-  }
 
   .outline-actions {
     margin-top: var(--space-2);

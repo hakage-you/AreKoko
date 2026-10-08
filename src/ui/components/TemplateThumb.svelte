@@ -31,7 +31,6 @@
     rot?: number;
     points?: string;
     r?: number;
-    notAPlace: boolean;
   }
 
   interface ThumbData {
@@ -98,7 +97,6 @@
           cx,
           cy,
           rot,
-          notAPlace: m.notAPlace ?? false,
         });
       } else if (m.shape.type === 'poly') {
         const rot = (m.rotation || 0) * 45;
@@ -115,7 +113,6 @@
           cx: (minX + maxX) / 2,
           cy: (minY + maxY) / 2,
           rot,
-          notAPlace: m.notAPlace ?? false,
         });
       } else if (m.shape.type === 'point') {
         markers.push({
@@ -123,7 +120,6 @@
           cx: m.shape.at[0] * aspect,
           cy: m.shape.at[1],
           r: 300,
-          notAPlace: m.notAPlace ?? false,
         });
       }
     }
@@ -190,7 +186,6 @@
               width={marker.w}
               height={marker.h}
               class="thumb-marker"
-              class:not-a-place={marker.notAPlace}
               vector-effect="non-scaling-stroke"
             />
           </g>
@@ -199,7 +194,6 @@
             <polygon
               points={marker.points}
               class="thumb-marker"
-              class:not-a-place={marker.notAPlace}
               vector-effect="non-scaling-stroke"
             />
           </g>
@@ -209,7 +203,6 @@
             cy={marker.cy}
             r={marker.r ?? 300}
             class="thumb-marker-point"
-            class:not-a-place={marker.notAPlace}
             vector-effect="non-scaling-stroke"
           />
         {/if}
@@ -256,11 +249,6 @@
     stroke-width: 1px;
   }
 
-  .thumb-marker.not-a-place {
-    fill: var(--text-muted);
-    stroke: var(--text-muted);
-    opacity: 0.7;
-  }
 
   .thumb-marker-point {
     fill: var(--accent);
@@ -268,7 +256,4 @@
     stroke-width: 1px;
   }
 
-  .thumb-marker-point.not-a-place {
-    fill: var(--text-muted);
-  }
 </style>

@@ -556,7 +556,10 @@
           }
         }
       }
-      activeDrag = null;
+      // 選んだマーカーの辺でない所を押した：形の編集を終え、ふつうに押したのと同じに扱う
+      // （別のマーカーならそれを選び、何もない所ならエリアを選ぶか選択を外す。レビュー2）
+      ui.tool = 'select';
+      handlePointerDown(e);
       return;
     }
   }
@@ -973,26 +976,6 @@
       onpointerup={handlePointerUp}
       onpointercancel={handlePointerCancel}
     >
-      <defs>
-        <!-- notAPlace マーカー用の斜線パターン -->
-        <pattern
-          id="not-a-place-stripes"
-          width="10"
-          height="10"
-          patternUnits="userSpaceOnUse"
-          patternTransform="rotate(45)"
-        >
-          <line
-            x1="0"
-            y1="0"
-            x2="0"
-            y2="10"
-            stroke="var(--text-muted)"
-            stroke-width="2"
-            stroke-opacity="0.6"
-          />
-        </pattern>
-      </defs>
 
       <!-- 1. 吸着の目盛り -->
       <g class="grid-layer">
@@ -1095,7 +1078,6 @@
               r={7 / ui.view.scale}
               class="marker-point"
               class:selected={isMarkerSelected}
-              class:not-a-place={m.notAPlace}
               vector-effect="non-scaling-stroke"
             />
             <text
@@ -1120,8 +1102,6 @@
                 height={h}
                 class="marker-rect"
                 class:selected={isMarkerSelected}
-                class:not-a-place={m.notAPlace}
-                fill={m.notAPlace ? 'url(#not-a-place-stripes)' : undefined}
                 vector-effect="non-scaling-stroke"
               />
               <text
@@ -1144,8 +1124,6 @@
                 points={m.shape.points.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
                 class="marker-poly"
                 class:selected={isMarkerSelected}
-                class:not-a-place={m.notAPlace}
-                fill={m.notAPlace ? 'url(#not-a-place-stripes)' : undefined}
                 vector-effect="non-scaling-stroke"
               />
               <text
@@ -1412,9 +1390,6 @@
     stroke-width: 2.5px;
   }
 
-  .marker-point.not-a-place {
-    fill: var(--text-muted);
-  }
 
   .marker-rect,
   .marker-poly {
@@ -1430,10 +1405,6 @@
     stroke-width: 2.5px;
   }
 
-  .marker-rect.not-a-place,
-  .marker-poly.not-a-place {
-    stroke: var(--text-muted);
-  }
 
   .marker-label {
     font-family: var(--font);

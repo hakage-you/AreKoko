@@ -16,7 +16,7 @@ export const TEMPLATE_LIST: { id: TemplateId; name: string; description: string 
   {
     id: 'livingL',
     name: 'L字のリビング',
-    description: 'L字の直角多角形と置き場にしない柱のマーカー',
+    description: 'L字の外形と、柱のマーカー',
   },
   {
     id: 'shelf3',
@@ -79,7 +79,7 @@ export function buildTemplate(template: TemplateId, ctx: OpContext): Draft {
       const realSize: RealSize = { w: 540, d: 450 };
       const attachRes = attachOutline(kuukanRes.doc, kuukanId, { outline, aspect, realSize }, ctx);
 
-      const finalDoc = addMarker(attachRes.doc, kuukanId, { name: '柱', shape: { type: 'rect', x: 5400, y: 4900, w: 600, h: 600 }, notAPlace: true }, ctx).doc;
+      const finalDoc = addMarker(attachRes.doc, kuukanId, { name: '柱', shape: { type: 'rect', x: 5400, y: 4900, w: 600, h: 600 } }, ctx).doc;
 
       return {
         origin: { kind: 'template', template: 'livingL' },

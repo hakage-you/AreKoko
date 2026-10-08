@@ -193,36 +193,17 @@ describe('結合試験: クウカンビュー (段階6)', () => {
     expectHealthy(app, s.file);
   });
 
-  it('V-N: 置き場にしないマーカーの上には付けられず、動かせない。文書は変わらない。マーカーの回転は縦横比を入れて判定', async () => {
+  it('V-N: マーカーは目印だけ。古い文書の notAPlace: true のマーカーの上にも描画を置け、動かせる（2026-10-08 に「置き場にしない」をなくした）', async () => {
     const s = await sketch();
     const { app } = s;
-    // 6畳間の縦横比は 1 ではない（360cm × 270cm）
-    const aspect = app.state.doc!.drawing.kuukans.find(k => k.kuukan === s.roomA)!.aspect;
-    expect(aspect).not.toBe(1);
     app.apply((d, ctx) => addMarker(d, s.roomA, { name: '柱', shape: { type: 'rect', x: 4000, y: 4000, w: 1000, h: 2000 }, notAPlace: true }, ctx));
     const broom = add(app, 'ほうき', s.yuka1);
-
-    const before = app.state.doc;
-    expect(app.apply((d, ctx) => setItemDrawing(d, broom, { shape: { type: 'point', at: [4500, 5000] } }, ctx))).toBeNull();
-    expect(app.state.doc).toBe(before);
-    expect(app.state.toast?.text).toBe('マーカー「柱」の上には置けません');
-
-    app.apply((d, ctx) => setItemDrawing(d, broom, { shape: { type: 'point', at: [1000, 1000] } }, ctx));
-    const placed = app.state.doc;
-    expect(app.apply(d => moveItemDrawing(d, broom, 3600, 4000))).toBeNull();
-    expect(app.state.doc).toBe(placed);
-
-    // マーカーを90度回す：表示の座標で回すので、比率の座標では幅 2000/aspect、高さ 1000*aspect の長方形になる
-    const marker = app.state.doc!.drawing.markers.find(m => m.name === '柱')!;
-    const { updateMarker } = await import('../../src/core/ops/markers');
-    app.apply(d => updateMarker(d, marker.id, { rotation: 2 }));
-    const halfW = 2000 / aspect / 2;
-    const halfH = (1000 * aspect) / 2;
-    const inside = Math.round(4500 + halfW - 5);
-    const outside = Math.round(4500 + halfW + 5);
-    expect(app.apply((d, ctx) => setItemDrawing(d, broom, { shape: { type: 'point', at: [inside, 5000] } }, ctx))).toBeNull();
-    expect(app.apply((d, ctx) => setItemDrawing(d, broom, { shape: { type: 'point', at: [outside, 5000] } }, ctx))).not.toBeNull();
-    expect(halfH).toBeGreaterThan(0);
+    expect(app.apply((d, ctx) => setItemDrawing(d, broom, { shape: { type: 'point', at: [4500, 5000] } }, ctx))).not.toBeNull();
+    expect(app.apply(d => moveItemDrawing(d, broom, 100, 0))).not.toBeNull();
+    expect(app.state.doc!.drawing.items.find(d => d.item === broom)!.shape).toEqual({ type: 'point', at: [4600, 5000] });
+    // 古い文書の項目は消さずに残す（知らない・使わない項目も保存で残す決まり）
+    await s.clock.advance(1000);
+    expect(s.file.json().drawing.markers.find((m: { name: string }) => m.name === '柱').notAPlace).toBe(true);
     expectHealthy(app, s.file);
   });
 

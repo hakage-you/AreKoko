@@ -244,3 +244,35 @@ label {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* 「ここで操作します」の光り方（actions.ts の attention） */
+@keyframes attention-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent);
+    border-color: var(--accent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+    border-color: var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.attention-flash {
+  animation: attention-pulse 0.8s ease-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes attention-still {
+    0%,
+    100% {
+      border-color: var(--accent);
+    }
+  }
+
+  .attention-flash {
+    animation: attention-still 1.6s linear 1;
+  }
+}

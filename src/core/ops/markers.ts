@@ -98,6 +98,7 @@ export function addMarker(
     name: string;
     shape: Shape;
     rotation?: Rotation;
+    /** 古い文書との互換のために受け付けるだけで、意味はない（2026-10-08 に機能をなくした）。 */
     notAPlace?: boolean;
   },
   ctx: OpContext,

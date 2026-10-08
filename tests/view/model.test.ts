@@ -8,7 +8,6 @@ import {
   undrawnCounts,
   drawingOffset,
   offsetText,
-  onNotAPlace,
   quickSearch,
   kuukanTrail,
 } from '../../src/view/model';
@@ -399,15 +398,6 @@ describe('view model', () => {
 
       // 7. 描画がない → null
       expect(drawingOffset(sampleDoc, ids.itemDan1Right)).toBeNull();
-    });
-  });
-
-  describe('onNotAPlace', () => {
-    it('notAPlaceMarkerAt を呼び出して判定する', () => {
-      const { doc, ids } = createSampleHierarchyDoc();
-      // markerPillar: x: 2000〜3000, y: 2000〜3000
-      expect(onNotAPlace(doc, ids.shelfKuukan, [2500, 2500])?.id).toBe(ids.markerPillar);
-      expect(onNotAPlace(doc, ids.shelfKuukan, [1000, 1000])).toBeNull();
     });
   });
 

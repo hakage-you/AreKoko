@@ -10,7 +10,6 @@ import {
   rotateItemDrawing,
   reshapeItemDrawing,
   removeItemDrawing,
-  notAPlaceMarkerAt,
 } from '../../../src/core/ops/itemDrawings';
 
 describe('itemDrawings ops', () => {
@@ -287,44 +286,15 @@ describe('itemDrawings ops', () => {
       }
     });
 
-    it('置き場にしない長方形マーカーの上（内側・辺の上）で OpError(onNotAPlace)', () => {
+    it('マーカーの上にも付けられる（古い文書の notAPlace: true でも。「置き場にしない」は 2026-10-08 になくした）', () => {
       const { doc: initialDoc, ids } = createTestDoc();
       const doc = deepFreeze(initialDoc);
-      // pillarMarker: rect x: 2000, y: 2000, w: 1000, h: 1000 (x: 2000〜3000, y: 2000〜3000)
 
-      // 内側
-      expect(() =>
-        setItemDrawing(doc, ids.item1, {
-          shape: { type: 'point', at: [2500, 2500] },
-        }),
-      ).toThrowError(OpError);
-      try {
-        setItemDrawing(doc, ids.item1, {
-          shape: { type: 'point', at: [2500, 2500] },
-        });
-      } catch (e) {
-        expect((e as OpError).code).toBe('onNotAPlace');
-        expect((e as OpError).message).toBe('マーカー「柱」の上には置けません');
+      // pillarMarker（rect x: 2000〜3000, y: 2000〜3000, notAPlace: true）の内側と辺の上
+      for (const at of [[2500, 2500], [2000, 2500]] as const) {
+        const res = setItemDrawing(doc, ids.item1, { shape: { type: 'point', at: [at[0], at[1]] } });
+        expect(validateDocument(res.doc)).toEqual([]);
       }
-
-      // 辺の上
-      expect(() =>
-        setItemDrawing(doc, ids.item1, {
-          shape: { type: 'point', at: [2000, 2500] },
-        }),
-      ).toThrowError(OpError);
-      try {
-        setItemDrawing(doc, ids.item1, {
-          shape: { type: 'point', at: [2000, 2500] },
-        });
-      } catch (e) {
-        expect((e as OpError).code).toBe('onNotAPlace');
-      }
-    });
-
-    it('点のマーカーや notAPlace が false のマーカーの上は通る', () => {
-      const { doc: initialDoc, ids } = createTestDoc();
-      const doc = deepFreeze(initialDoc);
 
       // pointMarker (at: [5000, 5000], notAPlace: true だが点のマーカー)
       const resPoint = setItemDrawing(doc, ids.item1, {
@@ -399,26 +369,13 @@ describe('itemDrawings ops', () => {
       });
     });
 
-    it('動かした先が置き場にしないマーカーの上なら OpError(onNotAPlace) で文書は変わらない', () => {
+    it('マーカーの上へも動かせる（notAPlace: true でも）', () => {
       const { doc: initialDoc, ids } = createTestDoc();
       const docWithItem = deepFreeze(
-        setItemDrawing(initialDoc, ids.item1, {
-          shape: { type: 'point', at: [1000, 1000] },
-        }).doc,
+        setItemDrawing(initialDoc, ids.item1, { shape: { type: 'point', at: [1000, 1000] } }).doc,
       );
-
-      // pillarMarker: [2000〜3000, 2000〜3000]
-      // dx: 1500, dy: 1500 で中心が [2500, 2500]（柱の上）になる
-      expect(() => moveItemDrawing(docWithItem, ids.item1, 1500, 1500)).toThrowError(OpError);
-      try {
-        moveItemDrawing(docWithItem, ids.item1, 1500, 1500);
-      } catch (e) {
-        expect((e as OpError).code).toBe('onNotAPlace');
-      }
-
-      // 元の描画は維持されている
-      const current = docWithItem.drawing.items.find(d => d.item === ids.item1)!;
-      expect(current.shape).toEqual({ type: 'point', at: [1000, 1000] });
+      const res = moveItemDrawing(docWithItem, ids.item1, 1500, 1500);
+      expect(res.doc.drawing.items.find(d => d.item === ids.item1)!.shape).toEqual({ type: 'point', at: [2500, 2500] });
     });
 
     it('描画がない場合は OpError(notFound)', () => {
@@ -541,37 +498,6 @@ describe('itemDrawings ops', () => {
       } catch (e) {
         expect((e as OpError).code).toBe('notFound');
       }
-    });
-  });
-
-  describe('notAPlaceMarkerAt', () => {
-    it('90度の倍数の回転（2: 90度回転）で幅と高さが入れ替わった外接長方形で判定される', () => {
-      const { doc: initialDoc, ids } = createTestDoc();
-      // 長方形マーカー: x: 1000, y: 1000, w: 2000, h: 1000, rotation: 2 (90度)
-      // 中心は (2000, 1500)。90度回転後の幅は 1000, 高さは 2000。
-      // x: [1500, 2500], y: [500, 2500]
-      const markerId = '01920000-0000-7000-8000-000000000099';
-      const doc: ArekokoDocument = {
-        ...initialDoc,
-        drawing: {
-          ...initialDoc.drawing,
-          markers: [
-            {
-              id: markerId,
-              kuukan: ids.roomA,
-              name: '回転柱',
-              shape: { type: 'rect', x: 1000, y: 1000, w: 2000, h: 1000 },
-              rotation: 2,
-              notAPlace: true,
-            },
-          ],
-        },
-      };
-
-      // 回転後の長方形内: (2000, 600) -> 該当
-      expect(notAPlaceMarkerAt(doc, ids.roomA, [2000, 600])?.id).toBe(markerId);
-      // 回転前の長方形のみに含まれる点: (2800, 1500) -> 回転後は x: [1500, 2500] なので範囲外
-      expect(notAPlaceMarkerAt(doc, ids.roomA, [2800, 1500])).toBeNull();
     });
   });
 });
