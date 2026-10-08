@@ -12,13 +12,21 @@
   const app = getApp();
   const ui = createEditorUi();
 
-  // 何も描いていない下書きで出す手順のカード（閉じたら、この下書きの間は出さない）
-  let guideClosed = $state(false);
+  // 作り方のカード。仕切りのない下書きでは最初から出す。閉じても、図の左上の「？ 作り方」で開き直せる
+  let guideMode = $state<'auto' | 'open' | 'closed'>('auto');
+  const isDraft = $derived($app.editor?.kind === 'draft');
   const showGuide = $derived.by(() => {
+    if (guideMode === 'open') return true;
+    if (guideMode === 'closed') return false;
     const ed = $app.editor;
-    if (ed?.kind !== 'draft' || guideClosed) return false;
-    const d = ed.draft.doc.drawing;
-    return d.partitions.length === 0;
+    return ed?.kind === 'draft' && ed.draft.doc.drawing.partitions.length === 0;
+  });
+  const hasKuukanDrawing = $derived.by(() => {
+    const ed = $app.editor;
+    if (!ed) return false;
+    const doc = ed.kind === 'draft' ? ed.draft.doc : $app.doc;
+    const k = ed.kind === 'draft' ? ed.draft.kuukan : ed.kuukan;
+    return Boolean(doc?.drawing.kuukans.some((d) => d.kuukan === k));
   });
   const draftHasOutline = $derived.by(() => {
     const ed = $app.editor;
@@ -203,20 +211,37 @@
         {#if showGuide}
           <div class="guide-card" role="note">
             <div class="guide-head">
-              <strong>下書きの作り方</strong>
-              <button type="button" class="ghost small" onclick={() => (guideClosed = true)} aria-label="作り方を閉じる">閉じる</button>
+              <strong>{isDraft ? '下書きの作り方' : 'クウカンの編集の仕方'}</strong>
+              <button type="button" class="ghost small" onclick={() => (guideMode = 'closed')} aria-label="作り方を閉じる">閉じる</button>
             </div>
             <ol>
-              {#if draftHasOutline}
+              {#if !isDraft}
+                <li><b>エリアに分ける</b>：「左右に分ける」「上下に分ける」を選んで、分けたい所を押します。</li>
+                <li><b>仕切りを動かす・消す</b>：「選ぶ」で線を押すと、ドラッグで動かせます。消すのは横（スマホでは下）の欄から。消したエリアのモノは外側のエリアに移ります（先に見せます）。</li>
+                <li><b>名前を変える</b>：エリアを押して、横の欄で。</li>
+                <li><b>外形を変えたいとき</b>：クウカンの一覧の「…」→「複製」で下書きを作り直し、「元と置き換える」で確定します。</li>
+                <li>変更はすぐ文書に入ります。終わったら左上の「← 戻る」。間違えたら「元に戻す」。</li>
+              {:else if draftHasOutline}
                 <li><b>形を整える</b>：上の「辺を動かす」「段差を足す」で、L字などにできます（長方形のままでもかまいません）。</li>
                 <li><b>エリアに分ける</b>：「左右に分ける」「上下に分ける」を選んで、分けたい所を押します。</li>
                 <li><b>目印を置く</b>（なくてもよい）：ドアや柱は「マーカーを置く」で。</li>
               {:else}
                 <li>外形のない下書きです。このまま確定すると、描画なしのクウカンになります。</li>
               {/if}
-              <li>できたら右上の<b>「確定する」</b>。確定するまで文書は変わりません。</li>
+              {#if isDraft}
+                <li>できたら右上の<b>「確定する」</b>。確定するまで文書は変わりません。</li>
+              {/if}
             </ol>
           </div>
+        {:else if hasKuukanDrawing || isDraft}
+          <button
+            type="button"
+            class="guide-open"
+            onclick={() => (guideMode = 'open')}
+            title={isDraft ? '下書きの作り方を開きます' : '編集の仕方を開きます'}
+          >
+            <span class="guide-q" aria-hidden="true">？</span>{isDraft ? '作り方' : '編集の仕方'}
+          </button>
         {/if}
       </div>
     </div>
@@ -482,6 +507,34 @@
     .fit-short {
       display: inline;
     }
+  }
+
+  .guide-open {
+    position: absolute;
+    left: var(--space-3);
+    top: var(--space-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 var(--space-3) 0 var(--space-1);
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    font-size: var(--font-size-small);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .guide-q {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
   }
 
   .guide-card {
