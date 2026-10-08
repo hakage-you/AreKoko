@@ -503,12 +503,15 @@
         <div class="field-block">
           <div class="group-label">形の編集</div>
           <div class="btn-group">
+            <!-- 押すと入り、もう一度押すと「選ぶ」に戻る（戻るためのボタンは置かない） -->
             <button
               type="button"
               class="small ghost"
               class:active={ui.tool === 'markerEdge'}
+              aria-pressed={ui.tool === 'markerEdge'}
+              title="マーカーの辺をドラッグして動かします。もう一度押すと終わります"
               onclick={() => {
-                ui.tool = 'markerEdge';
+                ui.tool = ui.tool === 'markerEdge' ? 'select' : 'markerEdge';
               }}
             >
               辺を動かす
@@ -517,21 +520,13 @@
               type="button"
               class="small ghost"
               class:active={ui.tool === 'markerStep'}
+              aria-pressed={ui.tool === 'markerStep'}
+              title="マーカーの辺に段差を付けて、L字などにします。もう一度押すと終わります"
               onclick={() => {
-                ui.tool = 'markerStep';
+                ui.tool = ui.tool === 'markerStep' ? 'select' : 'markerStep';
               }}
             >
               段差を足す
-            </button>
-            <button
-              type="button"
-              class="small ghost"
-              class:active={ui.tool === 'select'}
-              onclick={() => {
-                ui.tool = 'select';
-              }}
-            >
-              選ぶに戻る
             </button>
           </div>
         </div>
