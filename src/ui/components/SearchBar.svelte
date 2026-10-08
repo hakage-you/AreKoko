@@ -12,6 +12,7 @@
   let showCategoryPicker = $state(false);
   let showTagPicker = $state(false);
   let showPlacePicker = $state(false);
+  let isFilterOpen = $state(false);
 
   const suggestions = $derived.by(() => {
     if (!$app.doc || !$app.query.text || $app.query.text.trim() === '') {
@@ -23,6 +24,18 @@
   const hasSuggestions = $derived(
     suggestions.categories.length > 0 || suggestions.tags.length > 0
   );
+
+  const filterCount = $derived.by(() => {
+    let count = 0;
+    if ($app.query.category !== undefined) count += 1;
+    if ($app.query.tags && $app.query.tags.ids.length > 0) {
+      count += $app.query.tags.ids.length;
+    }
+    if ($app.query.place !== undefined) count += 1;
+    if ($app.query.unsetOnly) count += 1;
+    if ($app.query.storageOnly) count += 1;
+    return count;
+  });
 
   function handleTextInput(e: Event): void {
     const target = e.currentTarget as HTMLInputElement;
@@ -156,104 +169,120 @@
   {/if}
 
   <div class="filter-controls">
-    <div class="chips-area">
-      {#if $app.query.category !== undefined}
-        <span class="chip accent filter-chip">
-          <span>
-            カテゴリ: {$app.query.category === null
-              ? '未分類'
-              : ($app.doc ? displayName($app.doc, $app.query.category) : '')}
-          </span>
-          <button
-            type="button"
-            class="chip-remove"
-            onclick={removeCategory}
-            aria-label="カテゴリ条件を解除"
-          >
-            ×
-          </button>
-        </span>
-      {/if}
+    <div class="filter-bar-row">
+      <button
+        type="button"
+        class="small filter-toggle-btn"
+        class:is-active={filterCount > 0}
+        onclick={() => {
+          isFilterOpen = !isFilterOpen;
+        }}
+        aria-expanded={isFilterOpen}
+      >
+        絞り込み{filterCount > 0 ? `（${filterCount}）` : ''}
+      </button>
 
-      {#if $app.query.tags && $app.query.tags.ids.length > 0}
-        {#each $app.query.tags.ids as tagId (tagId)}
+      <div class="chips-area">
+        {#if $app.query.category !== undefined}
           <span class="chip accent filter-chip">
             <span>
-              タグ: {$app.doc ? displayName($app.doc, tagId) : tagId}
+              カテゴリ: {$app.query.category === null
+                ? '未分類'
+                : ($app.doc ? displayName($app.doc, $app.query.category) : '')}
             </span>
             <button
               type="button"
               class="chip-remove"
-              onclick={() => removeTag(tagId)}
-              aria-label="タグ条件を解除"
+              onclick={removeCategory}
+              aria-label="カテゴリ条件を解除"
             >
               ×
             </button>
           </span>
-        {/each}
-
-        {#if $app.query.tags.ids.length >= 2}
-          <button
-            type="button"
-            class="chip small mode-toggle-btn"
-            onclick={toggleTagMode}
-            title="タグの照合方法を切り替える"
-          >
-            タグ一致: {$app.query.tags.mode === 'all' ? 'すべて' : 'どれか'}
-          </button>
         {/if}
-      {/if}
 
-      {#if $app.query.place !== undefined}
-        <span class="chip accent filter-chip">
-          <span>
-            置き場: {$app.doc ? formatPlacePath($app.doc, $app.query.place) : ''}
+        {#if $app.query.tags && $app.query.tags.ids.length > 0}
+          {#each $app.query.tags.ids as tagId (tagId)}
+            <span class="chip accent filter-chip">
+              <span>
+                タグ: {$app.doc ? displayName($app.doc, tagId) : tagId}
+              </span>
+              <button
+                type="button"
+                class="chip-remove"
+                onclick={() => removeTag(tagId)}
+                aria-label="タグ条件を解除"
+              >
+                ×
+              </button>
+            </span>
+          {/each}
+
+          {#if $app.query.tags.ids.length >= 2}
+            <button
+              type="button"
+              class="chip small mode-toggle-btn"
+              onclick={toggleTagMode}
+              title="タグの照合方法を切り替える"
+            >
+              タグ一致: {$app.query.tags.mode === 'all' ? 'すべて' : 'どれか'}
+            </button>
+          {/if}
+        {/if}
+
+        {#if $app.query.place !== undefined}
+          <span class="chip accent filter-chip">
+            <span>
+              置き場: {$app.doc ? formatPlacePath($app.doc, $app.query.place) : ''}
+            </span>
+            <button
+              type="button"
+              class="chip-remove"
+              onclick={removePlace}
+              aria-label="置き場条件を解除"
+            >
+              ×
+            </button>
           </span>
-          <button
-            type="button"
-            class="chip-remove"
-            onclick={removePlace}
-            aria-label="置き場条件を解除"
-          >
-            ×
-          </button>
-        </span>
-      {/if}
+        {/if}
 
-      {#if $app.query.unsetOnly}
-        <span class="chip accent filter-chip">
-          <span>未設定だけ</span>
-          <button
-            type="button"
-            class="chip-remove"
-            onclick={removeUnsetOnly}
-            aria-label="未設定だけ条件を解除"
-          >
-            ×
-          </button>
-        </span>
-      {/if}
+        {#if $app.query.unsetOnly}
+          <span class="chip accent filter-chip">
+            <span>未設定だけ</span>
+            <button
+              type="button"
+              class="chip-remove"
+              onclick={removeUnsetOnly}
+              aria-label="未設定だけ条件を解除"
+            >
+              ×
+            </button>
+          </span>
+        {/if}
 
-      {#if $app.query.storageOnly}
-        <span class="chip accent filter-chip">
-          <span>収納だけ</span>
-          <button
-            type="button"
-            class="chip-remove"
-            onclick={removeStorageOnly}
-            aria-label="収納だけ条件を解除"
-          >
-            ×
-          </button>
-        </span>
-      {/if}
+        {#if $app.query.storageOnly}
+          <span class="chip accent filter-chip">
+            <span>収納だけ</span>
+            <button
+              type="button"
+              class="chip-remove"
+              onclick={removeStorageOnly}
+              aria-label="収納だけ条件を解除"
+            >
+              ×
+            </button>
+          </span>
+        {/if}
+      </div>
     </div>
 
-    <div class="add-filters-area">
+    <div class="add-filters-area" class:is-open={isFilterOpen}>
       <button
         type="button"
         class="filter-add-btn"
-        onclick={() => { showCategoryPicker = true; }}
+        onclick={() => {
+          showCategoryPicker = true;
+        }}
       >
         ＋カテゴリ
       </button>
@@ -261,7 +290,9 @@
       <button
         type="button"
         class="filter-add-btn"
-        onclick={() => { showTagPicker = true; }}
+        onclick={() => {
+          showTagPicker = true;
+        }}
       >
         ＋タグ
       </button>
@@ -269,7 +300,9 @@
       <button
         type="button"
         class="filter-add-btn"
-        onclick={() => { showPlacePicker = true; }}
+        onclick={() => {
+          showPlacePicker = true;
+        }}
       >
         ＋置き場
       </button>
@@ -407,6 +440,14 @@
     flex-wrap: wrap;
   }
 
+  .filter-bar-row {
+    display: contents;
+  }
+
+  .filter-toggle-btn {
+    display: none;
+  }
+
   .chips-area {
     display: flex;
     align-items: center;
@@ -483,7 +524,51 @@
       padding: var(--space-2);
     }
 
+    .filter-controls {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-2);
+    }
+
+    .filter-bar-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+      width: 100%;
+    }
+
+    .filter-toggle-btn {
+      display: inline-flex;
+      flex-shrink: 0;
+    }
+
+    .filter-toggle-btn.is-active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+    }
+
+    .chips-area {
+      flex: 1;
+      min-width: 0;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 2px;
+    }
+
+    .filter-chip,
+    .mode-toggle-btn {
+      flex-shrink: 0;
+    }
+
     .add-filters-area {
+      display: none;
+    }
+
+    .add-filters-area.is-open {
+      display: flex;
       width: 100%;
       margin-left: 0;
       overflow-x: auto;

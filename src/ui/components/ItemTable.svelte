@@ -139,19 +139,25 @@
             class:is-active-detail={$app.detail === row.item.id}
             class:is-highlighted={$app.highlights.has(row.item.id)}
             role="row"
-            onclick={() => app.showDetail(row.item.id)}
+            onclick={(e) => {
+              // チェック欄（ラベルごと押せる）の押下は、詳細を開かない
+              if ((e.target as Element).closest('.col-check')) return;
+              app.showDetail(row.item.id);
+            }}
           >
-            <div class="col-check">
+            <label class="col-check">
               <input
                 type="checkbox"
                 checked={$app.selection.has(row.item.id)}
                 onclick={(e) => {
                   e.stopPropagation();
+                }}
+                onchange={() => {
                   app.toggleSelection(row.item.id);
                 }}
                 aria-label="{row.item.name} を選択"
               />
-            </div>
+            </label>
 
             <div class="col-name" style="padding-left: {row.depth * 20}px;">
               <div class="name-line">
@@ -498,6 +504,11 @@
   @media (max-width: 767.98px) {
     .table-header {
       display: none;
+    }
+
+    .col-check {
+      height: 100%;
+      cursor: pointer;
     }
 
     .col-place,

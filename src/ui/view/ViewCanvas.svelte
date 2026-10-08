@@ -939,34 +939,35 @@
     }
   }
 
-  // 案内の1行
-  const defaultHint = $derived.by(() => {
+  function itemNameOf(id: Id | null): string {
+    if (!id || !doc) return '';
+    return doc.membership.items.find((it) => it.id === id)?.name ?? '';
+  }
+
+  // 案内の帯：何をする所か（what）と、どう使うか（how）
+  const hint = $derived.by((): { what: string; how: string } => {
     if (!isPlacing) {
-      return 'エリアやモノを押して選びます。収納の描画を押すと「開く」ボタンが出ます。';
+      return {
+        what: 'エリアを押すと、そのエリアのモノが右に並びます',
+        how: 'もう一度押すと元に戻ります。収納の描画を押すと「開く」が出ます。描画を付けたり動かしたりするには、上の「配置モード」へ。',
+      };
     }
     if (ui.attachTarget !== null) {
-      if (ui.attachTool === 'point') {
-        return '図を押して点を置きます。';
-      }
-      if (ui.attachTool === 'rect') {
-        return 'ドラッグして長方形を描きます。';
-      }
+      return ui.attachTool === 'point'
+        ? { what: `「${itemNameOf(ui.attachTarget)}」を点で描きます`, how: '置きたい所を押してください。' }
+        : { what: `「${itemNameOf(ui.attachTarget)}」を長方形で描きます`, how: '図の上をドラッグして範囲を描いてください。' };
     }
     if (ui.selectedDrawing !== null) {
-      if (ui.shapeTool === 'move') {
-        return 'ドラッグして動かします。';
-      }
-      if (ui.shapeTool === 'edge') {
-        return '辺を押してドラッグし、辺を動かします。';
-      }
-      if (ui.shapeTool === 'step') {
-        return '辺の上を押して垂直にドラッグし、段差を足します。';
-      }
+      const name = itemNameOf(ui.selectedDrawing);
+      if (ui.shapeTool === 'edge') return { what: `「${name}」の辺を動かします`, how: '辺を押したまま、動かしたい方へドラッグしてください。' };
+      if (ui.shapeTool === 'step') return { what: `「${name}」に段差を足します`, how: '辺の上を押し、辺と直角の向きへドラッグしてください。' };
+      return { what: `「${name}」を動かします`, how: '描画をドラッグしてください。置き場の外に出すと「ずれ」の印が付きます（置き場は変わりません）。' };
     }
-    return '描画を押して選ぶか、モノリストから「描画を付ける」を押してください。';
+    return {
+      what: '配置モード：モノの描画を付ける・動かす・回す・外す',
+      how: '右のリストで「描画を付ける」を押すか、図の上の描画を押して選んでください。',
+    };
   });
-
-  const currentMessage = $derived(ui.message ?? defaultHint);
 
   const selectedShapeIsRectOrPoly = $derived.by(() => {
     if (!selectedDrawingEntry) return false;
@@ -977,134 +978,65 @@
 
 <div class="view-canvas-container" bind:this={containerEl}>
   <!-- 道具の列（図の上） -->
-  <div class="view-toolbar" role="toolbar" aria-label="クウカンビューの道具">
-    <div class="tool-group">
-      <button
-        type="button"
-        class="ghost small tool-btn"
-        onclick={zoomIn}
-        title="拡大"
-        aria-label="拡大"
-      >
-        ＋
-      </button>
-      <button
-        type="button"
-        class="ghost small tool-btn"
-        onclick={zoomOut}
-        title="縮小"
-        aria-label="縮小"
-      >
-        −
-      </button>
-      <button
-        type="button"
-        class="ghost small tool-btn"
-        onclick={fitAll}
-      >
-        全体を表示
-      </button>
-    </div>
-
-    {#if isPlacing}
-      <div class="separator" role="separator" aria-orientation="vertical"></div>
-
+  {#if isPlacing && (ui.attachTarget !== null || ui.selectedDrawing !== null)}
+    <div class="view-toolbar" role="toolbar" aria-label="配置モードの道具">
       {#if ui.attachTarget !== null}
         <div class="tool-group">
-          <button
-            type="button"
-            class="ghost small tool-btn"
-            class:active={ui.attachTool === 'point'}
-            aria-pressed={ui.attachTool === 'point'}
-            onclick={() => { ui.attachTool = 'point'; }}
-          >
-            点
-          </button>
-          <button
-            type="button"
-            class="ghost small tool-btn"
-            class:active={ui.attachTool === 'rect'}
-            aria-pressed={ui.attachTool === 'rect'}
-            onclick={() => { ui.attachTool = 'rect'; }}
-          >
-            長方形
-          </button>
-          <button
-            type="button"
-            class="ghost small tool-btn"
-            onclick={() => { ui.attachTarget = null; }}
-          >
-            やめる
-          </button>
+          <span class="group-title">描画を付ける：{itemNameOf(ui.attachTarget)}</span>
+          <div class="group-buttons">
+            <button type="button" class="tool-btn" class:active={ui.attachTool === 'point'} aria-pressed={ui.attachTool === 'point'} title="図を押した位置に、点で描きます" onclick={() => { ui.attachTool = 'point'; }}>点で描く</button>
+            <button type="button" class="tool-btn" class:active={ui.attachTool === 'rect'} aria-pressed={ui.attachTool === 'rect'} title="図の上をドラッグして、長方形で描きます" onclick={() => { ui.attachTool = 'rect'; }}>長方形で描く</button>
+            <button type="button" class="tool-btn" title="描画を付けるのをやめます" onclick={() => { ui.attachTarget = null; ui.message = null; }}>やめる</button>
+          </div>
         </div>
       {:else if ui.selectedDrawing !== null}
         <div class="tool-group">
-          <button
-            type="button"
-            class="ghost small tool-btn"
-            onclick={() => applyRotateItemDrawing(-1)}
-            title="左に45度回す"
-          >
-            左に回す
-          </button>
-          <button
-            type="button"
-            class="ghost small tool-btn"
-            onclick={() => applyRotateItemDrawing(1)}
-            title="右に45度回す"
-          >
-            右に回す
-          </button>
-
-          {#if selectedShapeIsRectOrPoly}
-            <button
-              type="button"
-              class="ghost small tool-btn"
-              class:active={ui.shapeTool === 'move'}
-              aria-pressed={ui.shapeTool === 'move'}
-              onclick={() => { ui.shapeTool = 'move'; }}
-            >
-              動かす
-            </button>
-            <button
-              type="button"
-              class="ghost small tool-btn"
-              class:active={ui.shapeTool === 'edge'}
-              aria-pressed={ui.shapeTool === 'edge'}
-              onclick={() => { ui.shapeTool = 'edge'; }}
-            >
-              辺を動かす
-            </button>
-            <button
-              type="button"
-              class="ghost small tool-btn"
-              class:active={ui.shapeTool === 'step'}
-              aria-pressed={ui.shapeTool === 'step'}
-              onclick={() => { ui.shapeTool = 'step'; }}
-            >
-              段差を足す
-            </button>
-          {/if}
-
-          <button
-            type="button"
-            class="ghost small tool-btn danger"
-            onclick={applyRemoveItemDrawing}
-          >
-            描画を外す
-          </button>
+          <span class="group-title">選んだ描画：{itemNameOf(ui.selectedDrawing)}</span>
+          <div class="group-buttons">
+            <button type="button" class="tool-btn" class:active={ui.shapeTool === 'move'} aria-pressed={ui.shapeTool === 'move'} title="描画をドラッグして動かします" onclick={() => { ui.shapeTool = 'move'; }}>動かす</button>
+            {#if selectedShapeIsRectOrPoly}
+              <button type="button" class="tool-btn" class:active={ui.shapeTool === 'edge'} aria-pressed={ui.shapeTool === 'edge'} title="描画の辺をドラッグして、大きさを変えます" onclick={() => { ui.shapeTool = 'edge'; }}>辺を動かす</button>
+              <button type="button" class="tool-btn" class:active={ui.shapeTool === 'step'} aria-pressed={ui.shapeTool === 'step'} title="描画の辺に段差を付けて、L字などにします" onclick={() => { ui.shapeTool = 'step'; }}>段差を足す</button>
+            {/if}
+          </div>
+        </div>
+        <div class="tool-group">
+          <span class="group-title">向き</span>
+          <div class="group-buttons">
+            <button type="button" class="tool-btn" onclick={() => applyRotateItemDrawing(-1)} title="左に45度回します">⟲ 左に回す</button>
+            <button type="button" class="tool-btn" onclick={() => applyRotateItemDrawing(1)} title="右に45度回します">⟳ 右に回す</button>
+          </div>
+        </div>
+        <div class="tool-group">
+          <span class="group-title">&nbsp;</span>
+          <div class="group-buttons">
+            <button type="button" class="tool-btn danger" onclick={applyRemoveItemDrawing} title="このモノの描画を外します（モノと置き場はそのまま）">描画を外す</button>
+            <button type="button" class="tool-btn" onclick={() => { ui.selectedDrawing = null; ui.message = null; }} title="選ぶのをやめます">選ぶのをやめる</button>
+          </div>
         </div>
       {/if}
-    {/if}
-  </div>
+    </div>
+  {/if}
 
-  <!-- 案内の1行 -->
-  <div class="view-message-bar" class:has-error={ui.message !== null}>
-    <span class="message-text">{currentMessage}</span>
+  <!-- 案内の帯 -->
+  <div class="view-message-bar" class:has-error={ui.message !== null} aria-live="polite">
+    {#if ui.message !== null}
+      <span class="hint-what">{ui.message}</span>
+    {:else}
+      <span class="hint-what">{hint.what}</span>
+      {#if hint.how}<span class="hint-how">{hint.how}</span>{/if}
+    {/if}
   </div>
 
   <!-- 図の表示領域 -->
   <div class="svg-wrapper">
+    {#if kuukanDrawing}
+      <div class="zoom-float" role="group" aria-label="表示">
+        <button type="button" class="small" onclick={zoomIn} title="拡大します（ホイール・2本指でも）" aria-label="拡大">＋</button>
+        <button type="button" class="small" onclick={zoomOut} title="縮小します" aria-label="縮小">−</button>
+        <button type="button" class="small" onclick={fitAll} title="図の全体が見えるように戻します">全体を表示</button>
+      </div>
+    {/if}
     {#if !kuukanDrawing}
       <div class="no-drawing-placeholder">
         <p class="no-drawing-text">このクウカンには描画情報が設定されていません</p>
@@ -1624,11 +1556,11 @@
     background: var(--bg);
   }
 
-  /* 道具の列 */
+  /* 道具の列（配置モードで、相手がいるときだけ） */
   .view-toolbar {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
+    align-items: flex-end;
+    gap: var(--space-4);
     padding: var(--space-2) var(--space-3);
     background: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -1638,46 +1570,85 @@
 
   .tool-group {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .group-title {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .group-buttons {
+    display: flex;
     gap: var(--space-1);
+    flex-wrap: wrap;
+  }
+
+  .tool-btn {
+    min-height: 34px;
+    padding: 0 var(--space-3);
+    font-size: var(--font-size-small);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
   }
 
   .tool-btn.active {
-    background: var(--accent);
-    color: var(--accent-text);
+    background: var(--accent-soft);
+    color: var(--accent);
     border-color: var(--accent);
+    font-weight: 600;
   }
 
-  .separator {
-    width: 1px;
-    height: 20px;
-    background: var(--border);
-    margin: 0 var(--space-1);
+  .zoom-float {
+    position: absolute;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    z-index: 4;
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
 
   /* 案内の1行 */
   .view-message-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2);
     padding: var(--space-1) var(--space-3);
-    background: var(--surface-2);
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
     border-bottom: 1px solid var(--border);
     font-size: var(--font-size-small);
+    line-height: var(--line-height);
+  }
+
+  .hint-what {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .hint-how {
     color: var(--text-muted);
-    min-height: 26px;
-    display: flex;
-    align-items: center;
-    z-index: 4;
   }
 
   .view-message-bar.has-error {
     background: var(--warning-soft);
+    border-left-color: var(--warning);
+  }
+
+  .view-message-bar.has-error .hint-what {
     color: var(--warning);
   }
 
-  .message-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 
   /* SVG ラッパー */
   .svg-wrapper {

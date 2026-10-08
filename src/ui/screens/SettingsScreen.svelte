@@ -3,6 +3,21 @@
   import { CREDITS } from '../../app/credits';
 
   const app = getApp();
+
+  // 説明ページの場所（アプリと同じ場所の ai.md。詳細設計 段階7 F3）
+  const aiPageUrl = new URL('ai.md', document.baseURI).href;
+  const llmsUrl = new URL('llms.txt', document.baseURI).href;
+  const askText = `${llmsUrl} を読んで、アレココの文書の編集のしかたを確かめてください。そのうえで、添付する文書（JSON）に次のモノを追加して、編集した文書を返してください：
+（ここに追加したいモノを書く）`;
+
+  async function copyAsk(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(askText);
+      app.showToast('info', 'AIへの頼み方をコピーしました');
+    } catch {
+      app.showToast('error', 'コピーできませんでした。下の文を選んでコピーしてください');
+    }
+  }
 </script>
 
 <div class="settings-screen">
@@ -38,7 +53,12 @@
 
     <section class="settings-section">
       <h2 class="section-title">AI向けの説明</h2>
-      <p class="muted">準備中</p>
+      <p class="ai-lead">手元のAIに文書（JSON）を渡して、モノやカテゴリ・タグをまとめて追加してもらえます。<strong>頼む前に、ファイルの複製を取ってください。</strong>AIが足したものは、次に開くときに一覧で確かめてから読み込みます。</p>
+      <div class="ai-actions">
+        <a class="button-link" href={aiPageUrl} target="_blank" rel="noopener">説明ページを開く</a>
+        <button type="button" class="primary" onclick={copyAsk}>AIへの頼み方をコピー</button>
+      </div>
+      <pre class="ai-ask">{askText}</pre>
     </section>
 
     <section class="settings-section">
@@ -189,5 +209,44 @@
 
   .lib-name {
     font-weight: 500;
+  }
+
+  .ai-lead {
+    margin: 0 0 var(--space-3);
+    line-height: var(--line-height);
+  }
+
+  .ai-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .button-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-small);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .button-link:hover {
+    background: var(--surface-2);
+  }
+
+  .ai-ask {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: var(--font-size-small);
+    background: var(--surface-2);
+    border-radius: var(--radius-small);
+    user-select: all;
   }
 </style>

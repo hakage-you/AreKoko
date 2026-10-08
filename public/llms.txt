@@ -1,0 +1,8 @@
+# AreKoko
+
+> A browser app for keeping track of where things are at home, using floor plans you draw yourself and lists. All data lives in one JSON file (the "document") on the user's computer. When asked by the user, an AI may edit this document directly to add items, categories, tags, and kuukans (rooms/storage areas) without drawings.
+
+## For AI
+
+- [How to edit the document](./ai.md): what you may and may not change, ID rules (new elements use temporary IDs starting with "new:"), invariants to keep, and a worked example. Read this before editing. (Written in Japanese, UTF-8.)
+- [Document format (JSON Schema)](./schema.json): the shape of the document. Referential integrity rules are described in the page above.

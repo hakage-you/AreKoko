@@ -9,6 +9,18 @@
   const app = getApp();
 
   const results = $derived($app.doc ? searchItems($app.doc, $app.query) : []);
+
+  function handleSelectAll(): void {
+    const next = new Set($app.selection);
+    for (const it of results) {
+      next.add(it.id);
+    }
+    app.setSelection(next);
+  }
+
+  function handleDeselectAll(): void {
+    app.setSelection([]);
+  }
 </script>
 
 <div class="search-screen">
@@ -56,6 +68,23 @@
 
       <div class="toolbar-actions">
         <span class="count-label">{results.length}件</span>
+        <button
+          type="button"
+          class="small mobile-select-btn"
+          disabled={results.length === 0}
+          onclick={handleSelectAll}
+        >
+          すべて選ぶ
+        </button>
+        {#if $app.selection.size > 0}
+          <button
+            type="button"
+            class="small ghost mobile-select-btn"
+            onclick={handleDeselectAll}
+          >
+            選択を外す
+          </button>
+        {/if}
       </div>
     </div>
 
@@ -167,6 +196,10 @@
     white-space: nowrap;
   }
 
+  .mobile-select-btn {
+    display: none;
+  }
+
   .table-area {
     flex: 1;
     min-height: 0;
@@ -198,6 +231,11 @@
     .toolbar-actions {
       width: 100%;
       justify-content: flex-end;
+      gap: var(--space-2);
+    }
+
+    .mobile-select-btn {
+      display: inline-flex;
     }
 
     .detail-sidebar {
