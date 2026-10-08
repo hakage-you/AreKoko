@@ -84,6 +84,9 @@ describe('結合試験: レビュー1の直し', () => {
     app.openView(room);
     app.openHelp();
     expect(app.state.help).toBe('view');
+    app.openView(NIL_ID);
+    app.openHelp();
+    expect(app.state.help).toBe('unset');
     app.openHelp('words');
     expect(app.state.help).toBe('words');
     app.closeHelp();

@@ -9,6 +9,7 @@ import { serializeDocument } from '../core/serialize';
 import { History } from '../core/history';
 import { OpError } from '../core/ops/common';
 import { kuukanOfPlace } from '../core/places';
+import { NIL_ID } from '../core/constants';
 import type { OpContext, OpResult } from '../core/ops/common';
 import type { FileBackend, FileStat } from '../file/backend';
 import type { SaveStatus, Timers } from '../file/session';
@@ -34,7 +35,7 @@ export type Screen = 'start' | 'kuukans' | 'view' | 'search' | 'editor' | 'manag
 
 /** ヘルプの項目（詳細設計 レビュー1 1章）。 */
 export type HelpTopic =
-  | 'start' | 'kuukans' | 'view' | 'placing' | 'editor' | 'draft' | 'search' | 'manage' | 'settings' | 'words';
+  | 'start' | 'kuukans' | 'unset' | 'view' | 'placing' | 'editor' | 'draft' | 'search' | 'manage' | 'settings' | 'words';
 
 /** クウカンビューで開いているもの（詳細設計 段階6 5章）。 */
 export interface ViewTarget {
@@ -728,7 +729,7 @@ export class AppStore {
     switch (st.screen) {
       case 'start': return 'start';
       case 'kuukans': return 'kuukans';
-      case 'view': return st.view?.placing ? 'placing' : 'view';
+      case 'view': return st.view?.kuukan === NIL_ID ? 'unset' : st.view?.placing ? 'placing' : 'view';
       case 'editor': return st.editor?.kind === 'draft' ? 'draft' : 'editor';
       case 'search': return 'search';
       case 'manage': return 'manage';

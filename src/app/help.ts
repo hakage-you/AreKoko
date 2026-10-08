@@ -13,7 +13,7 @@ export interface HelpPage {
 }
 
 export const HELP_ORDER: Exclude<HelpTopic, 'words'>[] = [
-  'start', 'kuukans', 'view', 'placing', 'editor', 'draft', 'search', 'manage', 'settings',
+  'start', 'kuukans', 'unset', 'view', 'placing', 'editor', 'draft', 'search', 'manage', 'settings',
 ];
 
 export const HELP: Record<Exclude<HelpTopic, 'words'>, HelpPage> = {
@@ -44,6 +44,20 @@ export const HELP: Record<Exclude<HelpTopic, 'words'>, HelpPage> = {
       { label: '…', text: '複製・名前の変更・削除。削除すると、中のモノは「未設定」に移ります。' },
       { label: 'テンプレートから', text: '6畳間や棚など、よくある形から作ります。' },
       { label: '未設定', text: '置き場がまだ決まっていないモノの入れ物です。消せません。' },
+    ],
+  },
+  unset: {
+    title: '未設定',
+    what: '置き場（どのクウカンにあるか）がまだ決まっていないモノの入れ物です。アレココが最初から用意している特別なクウカンで、名前の変更や削除はできません。',
+    steps: [
+      'どこに置いたか分からないモノや、とりあえず登録したいモノは、ここに追加します。',
+      '置き場が決まったら、モノの詳細の「置き場」の「変更」で、クウカンやエリアへ移します。',
+      'クウカンを削除したときや、読み込みのときに置き場が見つからなかったモノも、ここに移ります。',
+      'サガシモノの「未設定だけ」で、置き場の決まっていないモノだけを探せます。',
+    ],
+    buttons: [
+      { label: '開く', text: '未設定のモノの一覧を開きます。ここでもモノを追加できます。' },
+      { label: '置き場の「変更」（モノの詳細）', text: 'モノを、決まったクウカンやエリアへ移します。' },
     ],
   },
   view: {

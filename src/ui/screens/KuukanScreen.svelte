@@ -41,6 +41,9 @@
     return topLevelKuukans.filter((k) => k.id !== NIL_ID);
   });
 
+  // 未設定のほかにクウカンがない（はじめて）。最初の一歩の案内を出す
+  const isFirstTime = $derived(customKuukans.length === 0 && storageKuukans.length === 0);
+
   function hasDrawing(kuukanId: Id): boolean {
     const doc = $app.doc;
     if (!doc) return false;
@@ -146,34 +149,62 @@
 
 <div class="kuukan-screen">
   <div class="screen-header">
-    <h2>クウカン</h2>
-    <p class="description muted">
-      クウカンを開くと、中のモノを見たり追加したりできます。置き場のないモノは「未設定」に入ります。
+    <div class="title-row">
+      <h2>クウカン</h2>
+      <button type="button" class="help-mini" onclick={() => app.openHelp('kuukans')} aria-label="クウカンとは（ヘルプ）" title="クウカンとは">？</button>
+    </div>
+    <p class="description">
+      モノを置く場所（部屋・物置・棚の中など）を<strong>クウカン</strong>と呼びます。クウカンを開くと、中のモノを見たり追加したりできます。
     </p>
   </div>
 
-  <div class="create-form">
-    <input
-      type="text"
-      bind:value={newKuukanName}
-      placeholder="新しいクウカン名…"
-      onkeydown={(e) => {
-        if (e.key === 'Enter') handleCreateKuukan();
-      }}
-    />
-    <button type="button" class="primary" onclick={handleCreateKuukan}>
-      ＋新しいクウカン
-    </button>
-    <button
-      type="button"
-      class="ghost"
-      onclick={() => {
-        showTemplateDialog = true;
-      }}
-    >
-      テンプレートから
-    </button>
-  </div>
+  {#if isFirstTime}
+    <!-- はじめて：最初の一歩だけを示す（レビュー2） -->
+    <section class="onboarding" aria-labelledby="onboarding-title">
+      <h3 id="onboarding-title">はじめに：モノを置く場所を作りましょう</h3>
+      <p class="onboarding-lead">
+        まず、家の中の場所（リビング、寝室、物置など）をクウカンとして1つ作ります。作ったクウカンを開いて、モノを追加していきます。
+      </p>
+      <div class="start-options">
+        <button type="button" class="start-option" onclick={() => (showTemplateDialog = true)}>
+          <strong>形を選んで作る</strong>
+          <span>6畳間・L字のリビング・棚などの間取りから選びます。図の上でエリアに分けて使えます。</span>
+          <span class="option-action">形を選ぶ →</span>
+        </button>
+        <div class="start-option">
+          <strong>名前だけで作る</strong>
+          <span>図なしで、すぐ使えます。図は後から描けます。</span>
+          <div class="start-name-row">
+            <input
+              type="text"
+              bind:value={newKuukanName}
+              placeholder="例：リビング"
+              aria-label="クウカンの名前"
+              onkeydown={(e) => {
+                if (e.key === 'Enter') handleCreateKuukan();
+              }}
+            />
+            <button type="button" class="primary" onclick={handleCreateKuukan} disabled={!newKuukanName.trim()}>作る</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  {:else}
+    <div class="create-form" role="group" aria-label="クウカンを作る">
+      <span class="create-label">クウカンを作る</span>
+      <input
+        type="text"
+        bind:value={newKuukanName}
+        placeholder="名前（例：リビング）"
+        aria-label="新しいクウカンの名前"
+        onkeydown={(e) => {
+          if (e.key === 'Enter') handleCreateKuukan();
+        }}
+      />
+      <button type="button" class="primary" onclick={handleCreateKuukan} disabled={!newKuukanName.trim()}>作る</button>
+      <button type="button" onclick={() => (showTemplateDialog = true)}>形を選んで作る</button>
+    </div>
+  {/if}
 
   <div class="kuukans-list">
     <!-- 未設定（常に最初） -->
@@ -198,7 +229,17 @@
           <span class="chip small muted">
             {itemsWithin($app.doc, unsetKuukan.id).length}件
           </span>
-          <span class="chip small muted">図なし</span>
+          <button
+            type="button"
+            class="help-mini"
+            onclick={(e) => {
+              e.stopPropagation();
+              app.openHelp('unset');
+            }}
+            aria-label="未設定とは（ヘルプ）"
+            title="未設定とは"
+          >？</button>
+          <span class="unset-note">置き場がまだ決まっていないモノが入ります</span>
         </div>
         <div class="kuukan-actions">
           <button
@@ -513,8 +554,122 @@
 
   .create-form {
     display: flex;
+    align-items: center;
     gap: var(--space-2);
     flex-wrap: wrap;
+  }
+
+  .create-label {
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .help-mini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    min-height: 24px;
+    padding: 0;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    background: transparent;
+  }
+
+  .unset-note {
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+  }
+
+  .onboarding {
+    padding: var(--space-4);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+  }
+
+  .onboarding h3 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-large);
+  }
+
+  .onboarding-lead {
+    margin: 0 0 var(--space-3);
+    line-height: var(--line-height);
+  }
+
+  .start-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+
+  .start-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    min-height: 0;
+    text-align: left;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    line-height: var(--line-height);
+    white-space: normal;
+  }
+
+  button.start-option:hover {
+    border-color: var(--accent);
+  }
+
+  .start-option strong {
+    font-size: var(--font-size);
+  }
+
+  .start-option span {
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+  }
+
+  .start-option .option-action {
+    margin-top: auto;
+    align-self: flex-end;
+    padding: 6px var(--space-3);
+    border-radius: var(--radius-small);
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+
+  .start-name-row {
+    display: flex;
+    gap: var(--space-2);
+    width: 100%;
+    margin-top: var(--space-1);
+  }
+
+  .start-name-row input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  @media (max-width: 767.98px) {
+    .start-options {
+      grid-template-columns: 1fr;
+    }
   }
 
   .create-form input {
