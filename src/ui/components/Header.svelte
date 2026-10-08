@@ -113,8 +113,8 @@
       <button
         type="button"
         class="nav-tab ghost"
-        class:active={$app.screen === 'kuukans'}
-        aria-current={$app.screen === 'kuukans' ? 'page' : undefined}
+        class:active={$app.screen === 'kuukans' || $app.screen === 'editor'}
+        aria-current={$app.screen === 'kuukans' || $app.screen === 'editor' ? 'page' : undefined}
         onclick={() => app.setScreen('kuukans')}
       >
         クウカン
@@ -163,8 +163,8 @@
     <button
       type="button"
       class="nav-tab ghost"
-      class:active={$app.screen === 'kuukans'}
-      aria-current={$app.screen === 'kuukans' ? 'page' : undefined}
+      class:active={$app.screen === 'kuukans' || $app.screen === 'editor'}
+      aria-current={$app.screen === 'kuukans' || $app.screen === 'editor' ? 'page' : undefined}
       onclick={() => app.setScreen('kuukans')}
     >
       クウカン
@@ -250,15 +250,18 @@
     color: var(--danger);
   }
 
+  .save-status.conflict {
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
   .history-actions {
     display: flex;
-    align-items: center;
     gap: var(--space-1);
   }
 
   .nav {
     display: flex;
-    align-items: center;
     gap: var(--space-1);
   }
 
@@ -267,11 +270,9 @@
     border-radius: var(--radius);
   }
 
-  .nav-tab.active,
-  .nav-tab[aria-current='page'] {
-    color: var(--accent);
+  .nav-tab.active {
+    background: var(--surface-2);
     font-weight: 600;
-    background: var(--accent-soft);
   }
 
   .header-right {
@@ -281,27 +282,23 @@
 
   .nav-mobile {
     display: none;
+    border-top: 1px solid var(--border);
+    padding: var(--space-1) var(--space-2);
+    overflow-x: auto;
   }
 
   @media (max-width: 767px) {
-    .header-bar {
-      padding: var(--space-2) var(--space-3);
-    }
-
     .nav-pc {
       display: none;
     }
 
     .nav-mobile {
       display: flex;
-      border-top: 1px solid var(--border);
-      padding: var(--space-1) var(--space-2);
+      justify-content: space-around;
     }
 
-    .nav-mobile .nav-tab {
-      flex: 1;
-      font-size: var(--font-size-small);
-      padding: 0 var(--space-2);
+    .header-bar {
+      padding: var(--space-1) var(--space-2);
     }
 
     .file-name {

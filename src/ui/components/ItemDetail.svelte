@@ -12,7 +12,6 @@
   } from '../../core/ops/items';
   import { removeNotice } from '../../core/ops/notices';
   import {
-    makeStorage,
     planRemoveStorage,
     removeStorage,
   } from '../../core/ops/storage';
@@ -132,10 +131,7 @@
   const isStorage = $derived(storageKuukan !== undefined);
 
   function handleMakeStorage() {
-    const res = app.apply((doc, ctx) => makeStorage(doc, id, {}, ctx));
-    if (res) {
-      app.showToast('info', '収納にしました。中に置けるようになりました');
-    }
+    app.openDraft({ kind: 'storage', item: id });
   }
 
   function handleRemoveStorage() {
@@ -203,9 +199,9 @@
         onkeydown={(e) => {
           if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
         }}
-        aria-label="モノの名前"
+        placeholder="モノの名前…"
       />
-      <button type="button" class="ghost small close-btn" onclick={onClose} aria-label="閉じる">
+      <button type="button" class="close-button ghost" onclick={onClose} aria-label="詳細を閉じる">
         ✕
       </button>
     </div>
@@ -217,7 +213,7 @@
           <span class="section-label">置き場</span>
           <button
             type="button"
-            class="small"
+            class="small ghost"
             onclick={() => {
               showPlacePicker = true;
             }}
@@ -225,7 +221,9 @@
             変更
           </button>
         </div>
-        <div class="section-value place-path">{placePathString}</div>
+        <div class="field-value place-path">
+          {placePathString || '未設定'}
+        </div>
       </section>
 
       <!-- カテゴリ -->
@@ -234,7 +232,7 @@
           <span class="section-label">カテゴリ</span>
           <button
             type="button"
-            class="small"
+            class="small ghost"
             onclick={() => {
               showCategoryPicker = true;
             }}
@@ -242,7 +240,11 @@
             変更
           </button>
         </div>
-        <div class="section-value">{categoryName}</div>
+        <div class="field-value">
+          <span class="chip {item.category === null ? 'muted' : ''}">
+            {categoryName}
+          </span>
+        </div>
       </section>
 
       <!-- タグ -->
@@ -251,30 +253,30 @@
           <span class="section-label">タグ</span>
           <button
             type="button"
-            class="small"
+            class="small ghost"
             onclick={() => {
               showTagPicker = true;
             }}
           >
-            ＋タグ
+            ＋ タグを追加
           </button>
         </div>
         <div class="tags-list">
           {#if tagObjects.length === 0}
-            <span class="muted small">なし</span>
+            <span class="muted small">タグなし</span>
           {:else}
             {#each tagObjects as tag (tag.id)}
               <span class="chip">
-                <span>{tag.name}</span>
+                {tag.name}
                 <button
                   type="button"
-                  class="chip-remove"
+                  class="tag-remove"
                   onclick={() => {
                     app.apply((doc, ctx) => removeTagFromItems(doc, [id], tag.id, ctx));
                   }}
-                  aria-label={`タグ「${tag.name}」を外す`}
+                  aria-label="{tag.name}を外す"
                 >
-                  ×
+                  ✕
                 </button>
               </span>
             {/each}
@@ -391,12 +393,21 @@
           {#if isStorage && storageKuukan}
             <button
               type="button"
-              class="primary small"
+              class="small"
               onclick={() => {
                 app.setQuery({ place: storageKuukan.id });
               }}
             >
               中を見る
+            </button>
+            <button
+              type="button"
+              class="primary small"
+              onclick={() => {
+                app.openKuukanEditor(storageKuukan.id);
+              }}
+            >
+              クウカンを編集
             </button>
             <button type="button" class="danger small" onclick={handleRemoveStorage}>
               収納設定を削除する
@@ -457,11 +468,11 @@
 
 {#if showTagPicker && item}
   <TagPicker
-    title="タグの追加"
+    title="タグを追加"
     exclude={item.tags}
     allowCreate={true}
-    onSelect={(tagId) => {
-      app.apply((doc, ctx) => addTagToItems(doc, [id], tagId, ctx));
+    onSelect={(newTag) => {
+      app.apply((doc, ctx) => addTagToItems(doc, [id], newTag, ctx));
       showTagPicker = false;
     }}
     onClose={() => {
@@ -472,56 +483,47 @@
 
 <style>
   .item-detail {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
     width: var(--detail-width);
+    height: 100%;
     background: var(--surface);
     border-left: 1px solid var(--border);
-    overflow-y: auto;
-  }
-
-  @media (max-width: 767px) {
-    .item-detail {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      z-index: 50;
-      border-left: none;
-    }
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
   }
 
   .header {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
-    background: var(--surface);
-    position: sticky;
-    top: 0;
-    z-index: 2;
+    gap: var(--space-2);
   }
 
   .name-input {
     font-size: var(--font-size-large);
     font-weight: 600;
-    border: 1px solid transparent;
-    padding: var(--space-1) var(--space-2);
-    min-height: var(--touch);
+    border: none;
+    background: transparent;
+    padding: 0;
+    min-height: auto;
   }
 
   .name-input:focus {
-    border-color: var(--border);
+    outline: none;
+    border-bottom: 2px solid var(--focus);
   }
 
-  .close-btn {
-    min-width: var(--touch);
-    min-height: var(--touch);
-    padding: 0;
+  .close-button {
+    padding: var(--space-1);
+    min-height: auto;
+    font-size: var(--font-size);
   }
 
   .body {
+    flex: 1;
+    overflow-y: auto;
     padding: var(--space-4);
     display: flex;
     flex-direction: column;
@@ -531,58 +533,53 @@
   .section {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1);
   }
 
   .section-header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
   }
 
   .section-label {
     font-size: var(--font-size-small);
     color: var(--text-muted);
-    font-weight: 600;
-  }
-
-  .section-value {
-    padding: var(--space-2) 0;
-    word-break: break-all;
+    margin: 0;
   }
 
   .place-path {
-    font-size: var(--font-size-small);
+    word-break: break-all;
   }
 
   .tags-list {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
-    min-height: var(--touch);
+    gap: var(--space-1);
   }
 
-  .chip-remove {
+  .tag-remove {
     border: none;
     background: transparent;
+    padding: 0;
     cursor: pointer;
-    padding: 0 var(--space-1);
+    font-size: 10px;
     color: var(--text-muted);
     min-height: auto;
-    font-size: inherit;
-    line-height: 1;
   }
 
-  .chip-remove:hover {
+  .tag-remove:hover {
     color: var(--danger);
-    background: transparent;
+  }
+
+  .add-fields-section {
+    padding: var(--space-2) 0;
   }
 
   .add-buttons {
     display: flex;
     gap: var(--space-2);
-    flex-wrap: wrap;
+    margin-top: var(--space-1);
   }
 
   .notices-section {
@@ -592,7 +589,7 @@
   }
 
   .notice-desc {
-    margin: 0 0 var(--space-2);
+    margin: var(--space-1) 0;
   }
 
   .notices-list {
@@ -607,7 +604,7 @@
     align-items: flex-start;
     gap: var(--space-2);
     background: var(--surface);
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-2);
     border-radius: var(--radius-small);
     border: 1px solid var(--border);
   }
@@ -621,12 +618,12 @@
   .storage-actions {
     display: flex;
     gap: var(--space-2);
+    margin-top: var(--space-1);
     flex-wrap: wrap;
-    align-items: center;
   }
 
   .footer-actions {
-    margin-top: var(--space-4);
+    margin-top: auto;
     padding-top: var(--space-4);
     border-top: 1px solid var(--border);
     display: flex;
@@ -638,5 +635,15 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  @media (max-width: 767px) {
+    .item-detail {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      z-index: 10;
+      border-left: none;
+    }
   }
 </style>

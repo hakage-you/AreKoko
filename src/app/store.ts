@@ -15,8 +15,25 @@ import { DocumentSession } from '../file/session';
 import type { RecentEntry } from '../file/recent';
 import type { AppSettings } from '../file/settings';
 import type { SearchQuery } from '../search/search';
+import type { Point } from '../core/types';
+import type { Relocation } from '../core/ops/common';
+import {
+  type Draft,
+  type DraftOrigin,
+  newDraft,
+  templateDraft,
+  duplicateDraft,
+  storageDraft,
+  setDraftOutline,
+} from '../editor/draft';
+import { type ConfirmMode, planConfirm, confirmDraft as confirmDraftOp } from '../editor/confirm';
 
-export type Screen = 'start' | 'search' | 'kuukans' | 'manage' | 'settings';
+export type Screen = 'start' | 'search' | 'kuukans' | 'editor' | 'manage' | 'settings';
+
+/** クウカン編集で開いているもの（詳細設計 段階5 7章）。 */
+export type EditorTarget =
+  | { kind: 'draft'; draft: Draft; canUndo: boolean; canRedo: boolean }
+  | { kind: 'kuukan'; kuukan: Id };
 export type Grouping = 'none' | 'category' | 'place' | 'tag';
 
 export type ConfirmDialog = {
@@ -55,6 +72,7 @@ export interface AppState {
   selection: ReadonlySet<Id>;
   recent: RecentEntry[];
   supportsOverwrite: boolean;
+  editor: EditorTarget | null;     // screen が 'editor' のときだけ
 }
 
 export interface AppDeps {
@@ -81,6 +99,10 @@ export class AppStore {
   private unsubscribeSession: (() => void) | null = null;
   private history: History = new History();
   private pendingRepair: { backend: FileBackend; stat: FileStat; doc: ArekokoDocument } | null = null;
+  // 下書きは文書の外にあるので、文書とは別の履歴を持つ（E6）
+  private draftHistory: History = new History();
+  // 下書きを取り消したときに戻る画面
+  private editorReturnScreen: Exclude<Screen, 'start' | 'editor'> = 'kuukans';
 
   constructor(deps: AppDeps) {
     this.deps = deps;
@@ -104,6 +126,7 @@ export class AppStore {
       selection: new Set(),
       recent: [],
       supportsOverwrite: deps.supportsFileSystemAccess(),
+      editor: null,
     };
   }
 
@@ -377,12 +400,14 @@ export class AppStore {
   }
 
   undo(): void {
+    if (this._state.editor?.kind === 'draft') return this.draftUndo();
     if (!this._state.doc) return;
     const prev = this.history.undo(this._state.doc);
     if (prev) this.commitDoc(prev, new Set());
   }
 
   redo(): void {
+    if (this._state.editor?.kind === 'draft') return this.draftRedo();
     if (!this._state.doc) return;
     const next = this.history.redo(this._state.doc);
     if (next) this.commitDoc(next, new Set());
@@ -395,7 +420,11 @@ export class AppStore {
     const exists = new Set(doc.membership.items.map(it => it.id));
     const detail = this._state.detail !== null && exists.has(this._state.detail) ? this._state.detail : null;
     const selection = new Set([...this._state.selection].filter(id => exists.has(id)));
+    // 編集中のクウカンがなくなったら（確定を元に戻したときなど）一覧へ
+    const ed = this._state.editor;
+    const editorGone = ed?.kind === 'kuukan' && !doc.membership.kuukans.some(k => k.id === ed.kuukan);
     this.updateState({
+      ...(editorGone ? { screen: 'kuukans' as const, editor: null } : {}),
       doc,
       saveStatus: this.session.status,
       dirty: this.session.dirty,
@@ -553,6 +582,13 @@ export class AppStore {
 
   /** 最初の画面へ。自動保存の待ちの途中なら、捨てずに書いてから閉じる。 */
   async closeDocument(): Promise<void> {
+    if (this._state.editor?.kind === 'draft') {
+      this.confirmDiscardDraft(() => {
+        this.updateState({ editor: null });
+        void this.closeDocument();
+      });
+      return;
+    }
     await this.flush();
     if (this._state.dirty) {
       this.confirm({
@@ -596,7 +632,9 @@ export class AppStore {
       grouping: 'none',
       detail: null,
       selection: new Set(),
+      editor: null,
     });
+    this.draftHistory.clear();
 
     void this.deps.listRecent().then((recent) => {
       this.updateState({ recent });
@@ -605,10 +643,20 @@ export class AppStore {
     });
   }
 
-  setScreen(s: Exclude<Screen, 'start'>): void {
+  setScreen(s: Exclude<Screen, 'start' | 'editor'>): void {
+    if (this._state.editor?.kind === 'draft') {
+      this.confirmDiscardDraft(() => this.doSetScreen(s));
+      return;
+    }
+    this.doSetScreen(s);
+  }
+
+  private doSetScreen(s: Exclude<Screen, 'start' | 'editor'>): void {
     this.history.clear();
+    this.draftHistory.clear();
     this.updateState({
       screen: s,
+      editor: null,
       canUndo: false,
       canRedo: false,
       highlights: new Set(),
@@ -640,5 +688,176 @@ export class AppStore {
       next.add(id);
     }
     this.updateState({ selection: next });
+  }
+
+  // ---- クウカン編集（詳細設計 段階5 7章） ----
+
+  /** 下書きを作って、クウカン編集を開く。 */
+  openDraft(origin: DraftOrigin, input: { name?: string } = {}): void {
+    const doc = this._state.doc;
+    if (!doc) return;
+    const ctx = this.opContext();
+    let draft: Draft;
+    try {
+      switch (origin.kind) {
+        case 'new':
+          draft = newDraft({ name: input.name ?? '新しいクウカン' }, ctx);
+          break;
+        case 'template':
+          draft = templateDraft(origin.template, ctx);
+          break;
+        case 'duplicate':
+          draft = duplicateDraft(doc, origin.source, ctx);
+          break;
+        case 'storage':
+          draft = storageDraft(doc, origin.item, ctx);
+          break;
+      }
+    } catch (err: unknown) {
+      if (err instanceof OpError) {
+        this.showToast('error', err.message);
+        return;
+      }
+      throw err;
+    }
+    this.rememberReturnScreen();
+    this.history.clear();
+    this.draftHistory.clear();
+    this.updateState({
+      screen: 'editor',
+      editor: { kind: 'draft', draft, canUndo: false, canRedo: false },
+      canUndo: false,
+      canRedo: false,
+      highlights: new Set(),
+    });
+  }
+
+  /** 確定したクウカンの編集を開く。表示するクウカンが変わるので履歴を消す（設計 10章）。 */
+  openKuukanEditor(kuukan: Id): void {
+    if (!this._state.doc?.membership.kuukans.some(k => k.id === kuukan)) return;
+    this.rememberReturnScreen();
+    this.history.clear();
+    this.draftHistory.clear();
+    this.updateState({
+      screen: 'editor',
+      editor: { kind: 'kuukan', kuukan },
+      canUndo: false,
+      canRedo: false,
+      highlights: new Set(),
+    });
+  }
+
+  /** クウカン編集から、開いた元の画面へ戻る（下書きなら捨てるか確認する）。 */
+  leaveEditor(): void {
+    this.setScreen(this.editorReturnScreen);
+  }
+
+  /** 下書きの文書に操作をかける。OpError は toast。 */
+  draftApply(op: (doc: ArekokoDocument, ctx: OpContext) => OpResult): OpResult | null {
+    const ed = this._state.editor;
+    if (ed?.kind !== 'draft') return null;
+    let result: OpResult;
+    try {
+      result = op(ed.draft.doc, this.opContext());
+    } catch (err: unknown) {
+      if (err instanceof OpError) {
+        this.showToast('error', err.message);
+        return null;
+      }
+      throw err;
+    }
+    if (result.doc !== ed.draft.doc) this.commitDraft({ ...ed.draft, doc: result.doc }, true);
+    return result;
+  }
+
+  /** 下書きの外形を付け替える。仕切りと矛盾すれば受け付けず、理由を出す（E2）。 */
+  draftSetOutline(outline: Point[]): boolean {
+    const ed = this._state.editor;
+    if (ed?.kind !== 'draft') return false;
+    return this.draftReplace(setDraftOutline(ed.draft, outline));
+  }
+
+  /** 下書きを丸ごと差し替える（外形を付ける・外すなど、draft.ts の関数の結果）。 */
+  draftReplace(next: Draft | { error: string }): boolean {
+    if (this._state.editor?.kind !== 'draft') return false;
+    if ('error' in next) {
+      this.showToast('error', next.error);
+      return false;
+    }
+    this.commitDraft(next, true);
+    return true;
+  }
+
+  draftUndo(): void {
+    const ed = this._state.editor;
+    if (ed?.kind !== 'draft') return;
+    const prev = this.draftHistory.undo(ed.draft.doc);
+    if (prev) this.commitDraft({ ...ed.draft, doc: prev }, false);
+  }
+
+  draftRedo(): void {
+    const ed = this._state.editor;
+    if (ed?.kind !== 'draft') return;
+    const next = this.draftHistory.redo(ed.draft.doc);
+    if (next) this.commitDraft({ ...ed.draft, doc: next }, false);
+  }
+
+  planDraftConfirm(mode: ConfirmMode): { removedAreas: Id[]; relocations: Relocation[] } | null {
+    const ed = this._state.editor;
+    if (ed?.kind !== 'draft' || !this._state.doc) return null;
+    return planConfirm(this._state.doc, ed.draft, mode);
+  }
+
+  /** 下書きを文書に確定し、確定したクウカンの編集へ移る。移ったモノはハイライトされる。 */
+  confirmDraft(mode: ConfirmMode): void {
+    const ed = this._state.editor;
+    if (ed?.kind !== 'draft') return;
+    const draft = ed.draft;
+    const result = this.apply((doc, ctx) => confirmDraftOp(doc, draft, mode, ctx));
+    if (!result) return;
+    const kuukan = result.created[0] ?? draft.kuukan;
+    this.draftHistory.clear();
+    // 確定は文書の履歴に積んだまま（元に戻すで確定を取り消せる）。表示を確定したクウカンへ。
+    this.updateState({ screen: 'editor', editor: { kind: 'kuukan', kuukan } });
+  }
+
+  /** 下書きを捨てて、開いた元の画面へ戻る。 */
+  cancelDraft(): void {
+    if (this._state.editor?.kind !== 'draft') return;
+    this.draftHistory.clear();
+    this.updateState({ screen: this.editorReturnScreen, editor: null, canUndo: false, canRedo: false });
+  }
+
+  private rememberReturnScreen(): void {
+    const s = this._state.screen;
+    if (s !== 'editor' && s !== 'start') this.editorReturnScreen = s;
+  }
+
+  private commitDraft(draft: Draft, record: boolean): void {
+    const ed = this._state.editor;
+    if (ed?.kind !== 'draft') return;
+    if (record) this.draftHistory.record(ed.draft.doc);
+    this.updateState({
+      editor: { kind: 'draft', draft, canUndo: this.draftHistory.canUndo, canRedo: this.draftHistory.canRedo },
+    });
+  }
+
+  private confirmDiscardDraft(then: () => void): void {
+    this.confirm({
+      title: '下書きを捨てますか？',
+      message: '確定していない下書きは、文書に入りません。',
+      details: [],
+      confirmLabel: '捨てる',
+      danger: true,
+      onConfirm: () => {
+        this.draftHistory.clear();
+        this.updateState({ editor: null });
+        then();
+      },
+    });
+  }
+
+  private opContext(): OpContext {
+    return { newId: () => this.deps.newId(), now: () => this.deps.now() };
   }
 }

@@ -1,28 +1,34 @@
 <script lang="ts">
   import { autofocus } from '../actions';
   import { getApp } from '../context';
-  import type { Kuukan } from '../../core/types';
+  import type { Kuukan, Id } from '../../core/types';
   import { NIL_ID, UNSET_NAME, NAMELESS_NAME } from '../../core/constants';
   import { itemsWithin, formatPlacePath } from '../../core/places';
   import {
-    createKuukan,
     renameKuukan,
     planDeleteKuukan,
     deleteKuukan,
   } from '../../core/ops/kuukans';
+  import { TEMPLATE_LIST } from '../../editor/templates';
+  import type { TemplateId } from '../../editor/draft';
 
   const app = getApp();
 
   let newKuukanName = $state('');
   let editingKuukanId = $state<Id | null>(null);
   let editingKuukanName = $state('');
-
-  type Id = string;
+  let showTemplateDialog = $state(false);
 
   const topLevelKuukans = $derived.by(() => {
     const doc = $app.doc;
     if (!doc) return [];
     return doc.membership.kuukans.filter((k) => k.owner === null);
+  });
+
+  const storageKuukans = $derived.by(() => {
+    const doc = $app.doc;
+    if (!doc) return [];
+    return doc.membership.kuukans.filter((k) => k.owner !== null);
   });
 
   const unsetKuukan = $derived.by(() => {
@@ -33,16 +39,34 @@
     return topLevelKuukans.filter((k) => k.id !== NIL_ID);
   });
 
+  function hasDrawing(kuukanId: Id): boolean {
+    const doc = $app.doc;
+    if (!doc) return false;
+    return doc.drawing.kuukans.some((k) => k.kuukan === kuukanId);
+  }
+
   function handleCreateKuukan() {
     const trimmed = newKuukanName.trim();
-    if (!trimmed) return;
-    app.apply((doc, ctx) => createKuukan(doc, { name: trimmed }, ctx));
+    app.openDraft({ kind: 'new' }, { name: trimmed || '新しいクウカン' });
     newKuukanName = '';
+  }
+
+  function handleSelectTemplate(template: TemplateId) {
+    showTemplateDialog = false;
+    app.openDraft({ kind: 'template', template });
   }
 
   function handleOpenKuukan(id: Id) {
     app.setQuery({ place: id });
     app.setScreen('search');
+  }
+
+  function handleEditKuukan(id: Id) {
+    app.openKuukanEditor(id);
+  }
+
+  function handleDuplicateKuukan(id: Id) {
+    app.openDraft({ kind: 'duplicate', source: id });
   }
 
   function startRename(kuukan: Kuukan) {
@@ -87,7 +111,7 @@
   <div class="screen-header">
     <h2>クウカン</h2>
     <p class="description muted">
-      平面図を描く「クウカン編集」は準備中です。ここでは、描画なしのクウカン（部屋・物置・貸出中 など）を作れます。
+      クウカンの平面図を描いて、仕切りでエリアに分けます。
     </p>
   </div>
 
@@ -101,7 +125,16 @@
       }}
     />
     <button type="button" class="primary" onclick={handleCreateKuukan}>
-      ＋クウカン
+      ＋新しいクウカン
+    </button>
+    <button
+      type="button"
+      class="ghost"
+      onclick={() => {
+        showTemplateDialog = true;
+      }}
+    >
+      テンプレートから
     </button>
   </div>
 
@@ -114,6 +147,7 @@
           <span class="chip small muted">
             {itemsWithin($app.doc, unsetKuukan.id).length}件
           </span>
+          <span class="chip small muted">描画なし</span>
         </div>
         <div class="kuukan-actions">
           <button
@@ -121,7 +155,7 @@
             class="small"
             onclick={() => handleOpenKuukan(unsetKuukan.id)}
           >
-            開く
+            モノを見る
           </button>
         </div>
       </div>
@@ -149,6 +183,11 @@
               <span class="chip small muted">
                 {itemsWithin($app.doc, kuukan.id).length}件
               </span>
+              {#if hasDrawing(kuukan.id)}
+                <span class="chip small accent">平面図あり</span>
+              {:else}
+                <span class="chip small muted">描画なし</span>
+              {/if}
             {/if}
           </div>
 
@@ -156,10 +195,24 @@
             {#if editingKuukanId !== kuukan.id}
               <button
                 type="button"
+                class="small primary"
+                onclick={() => handleEditKuukan(kuukan.id)}
+              >
+                編集
+              </button>
+              <button
+                type="button"
                 class="small"
                 onclick={() => handleOpenKuukan(kuukan.id)}
               >
-                開く
+                モノを見る
+              </button>
+              <button
+                type="button"
+                class="small ghost"
+                onclick={() => handleDuplicateKuukan(kuukan.id)}
+              >
+                複製
               </button>
               <button
                 type="button"
@@ -180,8 +233,105 @@
         </div>
       {/each}
     {/if}
+
+    <!-- 収納のクウカン -->
+    {#if storageKuukans.length > 0 && $app.doc}
+      <div class="storage-section">
+        <h3 class="storage-header">収納</h3>
+        <div class="storage-list">
+          {#each storageKuukans as kuukan (kuukan.id)}
+            {@const ownerItem = $app.doc.membership.items.find((i) => i.id === kuukan.owner)}
+            <div class="kuukan-card storage-card">
+              <div class="kuukan-info">
+                <div class="storage-title-block">
+                  <span class="kuukan-name">
+                    {ownerItem ? ownerItem.name : (kuukan.name ?? NAMELESS_NAME)}
+                  </span>
+                  {#if ownerItem}
+                    <span class="storage-path muted small">
+                      {formatPlacePath($app.doc, ownerItem.place)}
+                    </span>
+                  {/if}
+                </div>
+                <span class="chip small muted">
+                  {itemsWithin($app.doc, kuukan.id).length}件
+                </span>
+                {#if hasDrawing(kuukan.id)}
+                  <span class="chip small accent">平面図あり</span>
+                {:else}
+                  <span class="chip small muted">描画なし</span>
+                {/if}
+              </div>
+
+              <div class="kuukan-actions">
+                <button
+                  type="button"
+                  class="small primary"
+                  onclick={() => handleEditKuukan(kuukan.id)}
+                >
+                  編集
+                </button>
+                <button
+                  type="button"
+                  class="small"
+                  onclick={() => handleOpenKuukan(kuukan.id)}
+                >
+                  モノを見る
+                </button>
+                <button
+                  type="button"
+                  class="small ghost"
+                  onclick={() => handleDuplicateKuukan(kuukan.id)}
+                >
+                  複製
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
+
+{#if showTemplateDialog}
+  <div class="dialog-overlay" role="presentation">
+    <div
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="template-dialog-title"
+    >
+      <div class="dialog-header" id="template-dialog-title">
+        テンプレートから作成
+      </div>
+      <div class="dialog-body">
+        <div class="template-list">
+          {#each TEMPLATE_LIST as template (template.id)}
+            <button
+              type="button"
+              class="template-card"
+              onclick={() => handleSelectTemplate(template.id)}
+            >
+              <div class="template-name">{template.name}</div>
+              <div class="template-desc muted small">{template.description}</div>
+            </button>
+          {/each}
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button
+          type="button"
+          onclick={() => {
+            showTemplateDialog = false;
+          }}
+        >
+          キャンセル
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .kuukan-screen {
@@ -215,6 +365,12 @@
   .create-form {
     display: flex;
     gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .create-form input {
+    flex: 1;
+    min-width: 200px;
   }
 
   .kuukans-list {
@@ -261,5 +417,67 @@
     align-items: center;
     gap: var(--space-2);
     flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .storage-section {
+    margin-top: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .storage-header {
+    margin: 0;
+    font-size: var(--font-size);
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .storage-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .storage-title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .storage-path {
+    font-size: var(--font-size-small);
+  }
+
+  .template-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .template-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    text-align: left;
+    gap: var(--space-1);
+    cursor: pointer;
+  }
+
+  .template-card:hover {
+    background: var(--surface-2);
+  }
+
+  .template-name {
+    font-weight: 600;
+  }
+
+  .template-desc {
+    line-height: var(--line-height);
   }
 </style>
