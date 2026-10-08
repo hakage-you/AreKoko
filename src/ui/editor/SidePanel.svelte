@@ -494,7 +494,7 @@
 
       {#if selectedSingleMarker.shape.type === 'rect' || selectedSingleMarker.shape.type === 'poly'}
         <div class="field-block">
-          <div class="group-label">形の編集</div>
+          <div class="group-label">マーカーの形</div>
           <div class="btn-group">
             <!-- 押すと入り、もう一度押すと「選ぶ」に戻る（戻るためのボタンは置かない） -->
             <button
