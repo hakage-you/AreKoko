@@ -1,0 +1,246 @@
+/* アレココの見た目の土台。部品は色と余白をここの変数だけで指定する（詳細設計UI 5.0）。 */
+
+:root {
+  color-scheme: light dark;
+
+  /* 色 */
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --surface-2: #f0eee9;
+  --border: #dedad2;
+  --text: #24221f;
+  --text-muted: #6b665e;
+  --accent: #2f6f5e;
+  --accent-text: #ffffff;
+  --accent-soft: #e2efe9;
+  --danger: #b3412e;
+  --danger-soft: #f7e3df;
+  --warning: #8a5a00;
+  --warning-soft: #fbefd5;
+  --highlight: #fff3c4;
+  --focus: #3d8bfd;
+  --overlay: rgba(20, 18, 15, 0.45);
+
+  /* 文字 */
+  --font: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic UI', sans-serif;
+  --font-size: 15px;
+  --font-size-small: 13px;
+  --font-size-large: 18px;
+  --line-height: 1.6;
+
+  /* 余白と形 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius: 8px;
+  --radius-small: 4px;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+  /* 寸法 */
+  --touch: 40px;          /* 押せる部分の最小の高さ */
+  --row-height: 44px;     /* サガシモノの表の行の高さ（仮想スクロールで使う） */
+  --header-height: 52px;
+  --detail-width: 380px;  /* パソコンでのモノの詳細の幅 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #181715;
+    --surface: #22201d;
+    --surface-2: #2b2925;
+    --border: #3b3833;
+    --text: #ece8e1;
+    --text-muted: #a39d93;
+    --accent: #6cc3a8;
+    --accent-text: #10201b;
+    --accent-soft: #1f3a32;
+    --danger: #f08a76;
+    --danger-soft: #3d221d;
+    --warning: #f0c060;
+    --warning-soft: #3a2f17;
+    --highlight: #4a4017;
+    --focus: #79aefe;
+    --overlay: rgba(0, 0, 0, 0.6);
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+}
+
+#app {
+  height: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ボタン */
+button,
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--touch);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+button.danger.primary {
+  background: var(--danger);
+  color: var(--surface);
+}
+button.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+button.small {
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-small);
+}
+
+/* 入力 */
+input[type='text'],
+input[type='search'],
+input[type='number'],
+textarea,
+select {
+  min-height: var(--touch);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  width: 100%;
+}
+textarea {
+  padding: var(--space-2) var(--space-3);
+  min-height: 80px;
+  resize: vertical;
+}
+label {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  margin-bottom: var(--space-1);
+}
+
+/* チップ（検索の条件、タグ） */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+}
+.chip.accent {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* ダイアログ */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 100;
+}
+.dialog {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: min(560px, 100%);
+  max-height: calc(100vh - 2 * var(--space-4));
+  display: flex;
+  flex-direction: column;
+}
+.dialog-header {
+  padding: var(--space-4) var(--space-5) var(--space-2);
+  font-size: var(--font-size-large);
+  font-weight: 600;
+}
+.dialog-body {
+  padding: var(--space-2) var(--space-5);
+  overflow: auto;
+}
+.dialog-footer {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* 補助 */
+.muted {
+  color: var(--text-muted);
+}
+.small {
+  font-size: var(--font-size-small);
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
