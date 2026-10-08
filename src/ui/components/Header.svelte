@@ -109,7 +109,7 @@
           aria-expanded={fileMenuOpen}
           onclick={() => (fileMenuOpen = !fileMenuOpen)}
         >
-          {$app.fileName ?? '名称未設定'}<span class="caret" aria-hidden="true">▾</span>
+          {$app.fileName ?? '名称未設定'}
         </button>
         {#if fileMenuOpen}
           <div class="file-menu" role="menu">
@@ -136,7 +136,7 @@
       {/if}
 
       {#if showHistory}
-        <div class="history-actions">
+        <div class="history-actions" role="group" aria-label="元に戻す・やり直す">
           <button type="button" class="ghost small" disabled={!$app.canUndo} onclick={() => app.undo()} title="直前の操作を取り消します">元に戻す</button>
           <button type="button" class="ghost small" disabled={!$app.canRedo} onclick={() => app.redo()} title="取り消した操作をやり直します">やり直す</button>
         </div>
@@ -187,10 +187,11 @@
     padding: var(--space-1) var(--space-4);
   }
 
+  /* ファイル（名前と保存の状態）と、操作（元に戻す・やり直す）は別のまとまり。罫線と間隔で分ける */
   .header-left {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--space-4);
     min-width: 0;
   }
 
@@ -202,6 +203,7 @@
     min-width: 0;
   }
 
+  /* ファイル名は押せる（メニュー）。下線と、乗せたときの色だけで示す */
   .file-name {
     font-weight: 600;
     max-width: 220px;
@@ -213,20 +215,17 @@
     padding: 0;
     min-height: auto;
     color: var(--text);
-    text-decoration: underline dotted;
-    text-underline-offset: 3px;
+    text-decoration: underline;
+    text-decoration-color: var(--border);
+    text-underline-offset: 4px;
     cursor: pointer;
   }
 
-  .file-name:hover {
+  .file-name:hover,
+  .file-name[aria-expanded='true'] {
     color: var(--accent);
+    text-decoration-color: var(--accent);
     background: transparent;
-  }
-
-  .caret {
-    margin-left: 2px;
-    font-size: 11px;
-    color: var(--text-muted);
   }
 
   .file-menu {
@@ -286,6 +285,8 @@
   .history-actions {
     display: flex;
     gap: var(--space-1);
+    padding-left: var(--space-4);
+    border-left: 1px solid var(--border);
   }
 
   .nav {
@@ -363,6 +364,10 @@
 
     .header-left {
       gap: var(--space-2);
+    }
+
+    .history-actions {
+      padding-left: var(--space-2);
     }
 
     .file-name {
