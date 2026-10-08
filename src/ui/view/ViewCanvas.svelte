@@ -1115,6 +1115,7 @@
         aria-label="クウカンビューの図"
         bind:this={svgEl}
         viewBox="{vb.x} {vb.y} {vb.w} {vb.h}"
+        style:--u={1 / ui.view.scale}
         onpointerdown={handlePointerDown}
         onpointermove={handlePointerMove}
         onpointerup={handlePointerUp}
@@ -1721,11 +1722,12 @@
     cursor: pointer;
   }
 
+  /* 図の中の文字は、拡大率にかかわらず画面の上で同じ大きさにする（--u は画面の1pxに当たる図の座標の長さ） */
   .area-label {
     font-family: var(--font);
-    font-size: var(--font-size-small);
-    fill: var(--text-muted);
-    font-weight: 500;
+    font-size: calc(16px * var(--u, 1));
+    fill: var(--text);
+    font-weight: 600;
     pointer-events: none;
     user-select: none;
   }
@@ -1776,7 +1778,7 @@
 
   .marker-label {
     font-family: var(--font);
-    font-size: 11px;
+    font-size: calc(12px * var(--u, 1));
     fill: var(--text);
     font-weight: 500;
     pointer-events: none;
@@ -1786,7 +1788,7 @@
   /* 件数表示（V4） */
   .leaf-count-text {
     font-family: var(--font);
-    font-size: 11px;
+    font-size: calc(12px * var(--u, 1));
     fill: var(--text-muted);
     font-weight: 600;
     pointer-events: none;
@@ -1806,7 +1808,7 @@
 
   .partition-count-text {
     font-family: var(--font);
-    font-size: 11px;
+    font-size: calc(12px * var(--u, 1));
     fill: var(--text-muted);
     font-weight: 600;
     pointer-events: none;
@@ -1814,7 +1816,7 @@
 
   .kuukan-count-text {
     font-family: var(--font);
-    font-size: 13px;
+    font-size: calc(13px * var(--u, 1));
     fill: var(--text-muted);
     font-weight: 600;
     pointer-events: none;
@@ -1881,7 +1883,7 @@
 
   .item-label {
     font-family: var(--font);
-    font-size: 11px;
+    font-size: calc(12px * var(--u, 1));
     fill: var(--text);
     font-weight: 600;
     pointer-events: none;
@@ -1890,7 +1892,7 @@
 
   .item-inside-count {
     font-family: var(--font);
-    font-size: 10px;
+    font-size: calc(11px * var(--u, 1));
     fill: var(--accent);
     font-weight: 600;
     pointer-events: none;
@@ -1952,7 +1954,7 @@
 
   .offset-badge-text {
     font-family: var(--font);
-    font-size: 9px;
+    font-size: calc(10px * var(--u, 1));
     fill: var(--surface);
     font-weight: 800;
     pointer-events: none;

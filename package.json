@@ -1,6 +1,8 @@
 {
   "name": "arekoko",
   "private": true,
+  "author": "@hakage_you",
+  "license": "MIT",
   "version": "0.1.0",
   "type": "module",
   "scripts": {

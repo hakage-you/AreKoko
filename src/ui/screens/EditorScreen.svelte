@@ -10,7 +10,36 @@
   import { displayName, formatPlacePath } from '../../core/places';
 
   const app = getApp();
-  createEditorUi();
+  const ui = createEditorUi();
+
+  // 何も描いていない下書きで出す手順のカード（閉じたら、この下書きの間は出さない）
+  let guideClosed = $state(false);
+  const showGuide = $derived.by(() => {
+    const ed = $app.editor;
+    if (ed?.kind !== 'draft' || guideClosed) return false;
+    const d = ed.draft.doc.drawing;
+    return d.partitions.length === 0 && d.markers.length === 0;
+  });
+  const draftHasOutline = $derived.by(() => {
+    const ed = $app.editor;
+    return ed?.kind === 'draft' && ed.draft.doc.drawing.kuukans.some((k) => k.kuukan === ed.draft.kuukan);
+  });
+  const canUndo = $derived($app.editor?.kind === 'draft' ? $app.editor.canUndo : $app.canUndo);
+  const canRedo = $derived($app.editor?.kind === 'draft' ? $app.editor.canRedo : $app.canRedo);
+
+  function handleUndo() {
+    if ($app.editor?.kind === 'draft') app.draftUndo();
+    else app.undo();
+  }
+
+  function handleRedo() {
+    if ($app.editor?.kind === 'draft') app.draftRedo();
+    else app.redo();
+  }
+
+  function zoomBy(f: number) {
+    ui.view = { ...ui.view, scale: ui.view.scale * f };
+  }
 
   let showDuplicateChoice = $state(false);
 
@@ -118,19 +147,26 @@
   <header class="editor-header">
     <div class="editor-header-left">
       {#if $app.editor?.kind === 'draft'}
-        <button type="button" class="ghost small" onclick={handleCancelDraft}>
-          取り消し
+        <button type="button" class="ghost small" onclick={handleCancelDraft} title="下書きを捨てて、開く前の画面に戻ります">
+          下書きを捨てる
         </button>
       {:else}
-        <button type="button" class="ghost small" onclick={handleLeaveEditor}>
-          一覧へ戻る
+        <button type="button" class="ghost small" onclick={handleLeaveEditor} title="編集を終えて、開く前の画面に戻ります（変更はもう文書に入っています）">
+          ← 戻る
         </button>
       {/if}
       <h2 class="editor-title">{title}</h2>
+      <div class="history-buttons">
+        <button type="button" class="ghost small" disabled={!canUndo} onclick={handleUndo} title="直前の操作を取り消します">元に戻す</button>
+        <button type="button" class="ghost small" disabled={!canRedo} onclick={handleRedo} title="取り消した操作をやり直します">やり直す</button>
+      </div>
     </div>
 
     <div class="editor-header-right">
       {#if $app.editor?.kind === 'draft'}
+        {#if draftViolations.length === 0}
+          <span class="confirm-note muted small">確定するまで文書は変わりません</span>
+        {/if}
         {#if draftViolations.length > 0 && cannotConfirmReason}
           <span class="confirm-error-message" title={cannotConfirmReason}>
             {cannotConfirmReason}
@@ -138,11 +174,12 @@
         {/if}
         <button
           type="button"
-          class="primary small"
+          class="primary"
           disabled={draftViolations.length > 0}
           onclick={handleConfirmClick}
+          title="下書きを文書に入れます"
         >
-          確定
+          確定する
         </button>
       {/if}
     </div>
@@ -153,6 +190,29 @@
       <Toolbar />
       <div class="canvas-wrapper">
         <Canvas />
+        <div class="zoom-float" role="group" aria-label="表示">
+          <button type="button" class="small" onclick={() => zoomBy(1.25)} title="拡大します（ホイール・2本指でも）" aria-label="拡大">＋</button>
+          <button type="button" class="small" onclick={() => zoomBy(0.8)} title="縮小します" aria-label="縮小">−</button>
+          <button type="button" class="small" onclick={() => ui.fitRequest++} title="図の全体が見えるように戻します">全体を表示</button>
+        </div>
+        {#if showGuide}
+          <div class="guide-card" role="note">
+            <div class="guide-head">
+              <strong>下書きの作り方</strong>
+              <button type="button" class="ghost small" onclick={() => (guideClosed = true)} aria-label="作り方を閉じる">閉じる</button>
+            </div>
+            <ol>
+              {#if draftHasOutline}
+                <li><b>形を整える</b>：上の「辺を動かす」「段差を足す」で、L字などにできます（長方形のままでもかまいません）。</li>
+                <li><b>エリアに分ける</b>：「縦に分ける」「横に分ける」を選んで、分けたい所を押します。</li>
+                <li><b>目印を置く</b>（なくてもよい）：ドアや柱は「マーカーを置く」で。</li>
+              {:else}
+                <li>外形のない下書きです。このまま確定すると、描画なしのクウカンになります。</li>
+              {/if}
+              <li>できたら右上の<b>「確定する」</b>。確定するまで文書は変わりません。</li>
+            </ol>
+          </div>
+        {/if}
       </div>
     </div>
     <aside class="side-panel-wrapper">
@@ -351,5 +411,61 @@
       border-left: none;
       border-top: 1px solid var(--border);
     }
+  }
+
+  .confirm-note {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 767.98px) {
+    .confirm-note {
+      display: none;
+    }
+  }
+
+  .history-buttons {
+    display: flex;
+    gap: var(--space-1);
+    flex-shrink: 0;
+  }
+
+  .zoom-float {
+    position: absolute;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .guide-card {
+    position: absolute;
+    left: var(--space-3);
+    top: var(--space-3);
+    max-width: min(420px, calc(100% - 2 * var(--space-3)));
+    padding: var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+    font-size: var(--font-size-small);
+    line-height: var(--line-height);
+  }
+
+  .guide-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+  }
+
+  .guide-card ol {
+    margin: 0;
+    padding-left: 1.4em;
   }
 </style>

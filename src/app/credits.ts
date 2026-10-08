@@ -1,4 +1,4 @@
-// 設定の画面に出すクレジット（設計 8.7）。作者とライセンスは未確定（null は「未設定」と出す）。
+// 設定の画面に出すクレジット（設計 8.7）。null は「未設定」と出す。
 
 export interface Credits {
   appName: string;
@@ -9,8 +9,8 @@ export interface Credits {
 
 export const CREDITS: Credits = {
   appName: 'アレココ（AreKoko）',
-  author: null,
-  license: null,
+  author: '@hakage_you',
+  license: 'MIT',
   // 実行時に読み込まれるもの
   libraries: [
     { name: 'Svelte', license: 'MIT' },
