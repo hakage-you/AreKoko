@@ -46,6 +46,7 @@
   const doc = $derived($app.doc);
   const kuukanId = $derived($app.view?.kuukan ?? null);
   const isPlacing = $derived(Boolean($app.view?.placing));
+  const selectedAreaId = $derived($app.view?.area ?? null);
 
   const kuukanDrawing = $derived.by(() => {
     if (!doc || !kuukanId) return null;
@@ -237,6 +238,7 @@
       lastKuukanId = kuukanId;
       if (ui.selectedDrawing !== null) ui.selectedDrawing = null;
       if (ui.attachTarget !== null) ui.attachTarget = null;
+      if (ui.detailToRestore !== null) ui.detailToRestore = null;
       if (ui.message !== null) ui.message = null;
     }
   });
@@ -273,6 +275,49 @@
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       el.removeEventListener('wheel', onWheel);
+    };
+  });
+
+  function isEditableElement(el: Element | null): boolean {
+    if (!el) return false;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    if ((el as HTMLElement).isContentEditable) return true;
+    return false;
+  }
+
+  // キーボードショートカット（配置モード時のEscape/Delete）
+  $effect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditableElement(document.activeElement)) return;
+
+      if (e.key === 'Escape') {
+        if (ui.selectedDrawing !== null) {
+          e.preventDefault();
+          ui.selectedDrawing = null;
+          ui.message = null;
+          return;
+        }
+        if (ui.attachTarget !== null) {
+          e.preventDefault();
+          ui.attachTarget = null;
+          ui.message = null;
+          return;
+        }
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (isPlacing && ui.selectedDrawing !== null) {
+          e.preventDefault();
+          applyRemoveItemDrawing();
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
     };
   });
 
@@ -501,12 +546,8 @@
 
       if (hitEntry) {
         ui.selectedDrawing = hitEntry.drawing.item;
+        ui.detailToRestore = hitEntry.drawing.item;
         ui.message = null;
-
-        if (ui.shapeTool === 'move') {
-          activeDrag = { kind: 'moveDrawing', id: hitEntry.drawing.item, startP: pRatio };
-          return;
-        }
 
         const pts = shapeToPolyPoints(hitEntry.drawing.shape);
         if (pts) {
@@ -514,43 +555,22 @@
           const unrotP = toLocalRatio(pRatio, hitEntry.drawing.shape, rot);
           const edgeIndex = edgeAt(pts, unrotP, tol12);
 
+          // 辺の近くを押した場合は辺ドラッグ（リサイズ）
           if (edgeIndex !== null) {
-            if (ui.shapeTool === 'edge') {
-              activeDrag = {
-                kind: 'drawingEdge',
-                id: hitEntry.drawing.item,
-                edgeIndex,
-                startP: unrotP,
-                points: pts,
-                rotation: rot,
-              };
-              return;
-            }
-            if (ui.shapeTool === 'step') {
-              const p1 = pts[edgeIndex]!;
-              const p2 = pts[(edgeIndex + 1) % pts.length]!;
-              const isHoriz = p1[1] === p2[1];
-              const at = isHoriz ? snap(unrotP[0], stepX) : snap(unrotP[1], stepY);
-              const side: 'start' | 'end' = isHoriz
-                ? Math.abs(at - p2[0]) < Math.abs(at - p1[0]) ? 'end' : 'start'
-                : Math.abs(at - p2[1]) < Math.abs(at - p1[1]) ? 'end' : 'start';
-
-              activeDrag = {
-                kind: 'drawingStep',
-                id: hitEntry.drawing.item,
-                edgeIndex,
-                at,
-                side,
-                isHoriz,
-                startP: unrotP,
-                points: pts,
-                rotation: rot,
-              };
-              return;
-            }
+            activeDrag = {
+              kind: 'drawingEdge',
+              id: hitEntry.drawing.item,
+              edgeIndex,
+              startP: unrotP,
+              points: pts,
+              rotation: rot,
+            };
+            return;
           }
         }
-        activeDrag = null;
+
+        // 内部を押した場合は移動ドラッグ
+        activeDrag = { kind: 'moveDrawing', id: hitEntry.drawing.item, startP: pRatio };
         return;
       }
 
@@ -702,6 +722,7 @@
 
         if (hitEntry) {
           ui.selectedDrawing = hitEntry.drawing.item;
+          ui.detailToRestore = hitEntry.drawing.item;
         } else {
           ui.selectedDrawing = null;
         }
@@ -715,12 +736,8 @@
         .find((entry) => hitDrawing(entry, pRatio));
 
       if (hitEntry) {
-        if (hitEntry.isStorage) {
-          ui.selectedDrawing = hitEntry.drawing.item;
-        } else {
-          ui.selectedDrawing = null;
-          app.showDetail(hitEntry.item.id);
-        }
+        ui.selectedDrawing = hitEntry.drawing.item;
+        app.showDetail(hitEntry.item.id);
         return;
       }
 
@@ -728,13 +745,22 @@
       if (regions && kuukanGeometry) {
         const leafId = leafAt(regions, kuukanGeometry.tree, pRatio);
         if (leafId) {
-          app.selectViewArea($app.view?.area === leafId ? null : leafId);
+          if ($app.view?.area) {
+            // エリア選択中は、どのエリアをクリックしても解除（暗い部分クリックで解除）
+            app.selectViewArea(null);
+          } else {
+            app.selectViewArea(leafId);
+          }
           ui.selectedDrawing = null;
+          app.showDetail(null);
           return;
         }
-        // 葉に当たらない（線の上など）ときは、選択を変えない。クウカンそのものはエリアではないので選ばない
+        // 葉に当たらない（線の上など）ときは、エリア選択中なら解除
         const rootPoly = regions.get(kuukanGeometry.tree.root);
         if (rootPoly && locatePoint(rootPoly, pRatio) !== 'outside') {
+          if ($app.view?.area) {
+            app.selectViewArea(null);
+          }
           ui.selectedDrawing = null;
           return;
         }
@@ -743,6 +769,7 @@
       // 外形の外
       app.selectViewArea(null);
       ui.selectedDrawing = null;
+      app.showDetail(null);
       return;
     }
 
@@ -838,6 +865,7 @@
     if (res) {
       ui.attachTarget = null;
       ui.selectedDrawing = targetId;
+      ui.detailToRestore = targetId;
       ui.message = null;
     }
   }
@@ -945,30 +973,25 @@
     if (!isPlacing) {
       return {
         what: 'エリアを押すと、そのエリアのモノがリストに並びます',
-        how: 'もう一度押すと元に戻ります。収納の描画を押すと「開く」が出ます。描画を付けたり動かしたりするには、上の「配置モード」へ。',
+        how: 'もう一度押すと元に戻ります。収納を押すと「開く」が出ます。間取り図にモノのマークを付けるには、上の「モノを配置」へ。',
       };
     }
     if (ui.attachTarget !== null) {
       return ui.attachTool === 'point'
-        ? { what: `「${itemNameOf(ui.attachTarget)}」を点で描きます`, how: '置きたい所を押してください。' }
-        : { what: `「${itemNameOf(ui.attachTarget)}」を長方形で描きます`, how: '図の上をドラッグして範囲を描いてください。' };
+        ? { what: `「${itemNameOf(ui.attachTarget)}」を点で配置します`, how: '置きたい所を押してください。' }
+        : { what: `「${itemNameOf(ui.attachTarget)}」を四角で配置します`, how: '図の上をドラッグして範囲を描いてください。' };
     }
     if (ui.selectedDrawing !== null) {
       const name = itemNameOf(ui.selectedDrawing);
-      if (ui.shapeTool === 'edge') return { what: `「${name}」の辺を動かします`, how: '辺を押したまま、動かしたい方へドラッグしてください。' };
-      if (ui.shapeTool === 'step') return { what: `「${name}」に段差を足します`, how: '辺の上を押し、辺と直角の向きへドラッグしてください。' };
-      return { what: `「${name}」を動かします`, how: '描画をドラッグしてください。置き場の外に出すと「ずれ」の印が付きます（置き場は変わりません）。' };
+      return {
+        what: `「${name}」の配置を編集中`,
+        how: '中央をドラッグして移動、辺をドラッグして大きさを変えられます。置き場の外に出すと「ずれ」が付きます。',
+      };
     }
     return {
-      what: '配置モード：モノの描画を付ける・動かす・回す・外す',
-      how: '右のリストで「描画を付ける」を押すか、図の上の描画を押して選んでください。',
+      what: 'モノの配置：間取りや棚の上にモノを配置・移動します',
+      how: '右のリストで「配置する」を押すか、図の上のマークを押して選んでください。終わったら右上の「配置を終了」を押します。',
     };
-  });
-
-  const selectedShapeIsRectOrPoly = $derived.by(() => {
-    if (!selectedDrawingEntry) return false;
-    const t = selectedDrawingEntry.drawing.shape.type;
-    return t === 'rect' || t === 'poly';
   });
 </script>
 
@@ -978,23 +1001,17 @@
     <div class="view-toolbar" role="toolbar" aria-label="配置モードの道具">
       {#if ui.attachTarget !== null}
         <div class="tool-group">
-          <span class="group-title">描画を付ける：{itemNameOf(ui.attachTarget)}</span>
+          <span class="group-title">配置するモノ：{itemNameOf(ui.attachTarget)}</span>
           <div class="group-buttons">
-            <button type="button" class="tool-btn" class:active={ui.attachTool === 'point'} aria-pressed={ui.attachTool === 'point'} title="図を押した位置に、点で描きます" onclick={() => { ui.attachTool = 'point'; }}>点で描く</button>
-            <button type="button" class="tool-btn" class:active={ui.attachTool === 'rect'} aria-pressed={ui.attachTool === 'rect'} title="図の上をドラッグして、長方形で描きます" onclick={() => { ui.attachTool = 'rect'; }}>長方形で描く</button>
-            <button type="button" class="tool-btn" title="描画を付けるのをやめます" onclick={() => { ui.attachTarget = null; ui.message = null; }}>やめる</button>
+            <button type="button" class="tool-btn" class:active={ui.attachTool === 'point'} aria-pressed={ui.attachTool === 'point'} title="図を押した位置に、点で配置します" onclick={() => { ui.attachTool = 'point'; }}>点で配置</button>
+            <button type="button" class="tool-btn" class:active={ui.attachTool === 'rect'} aria-pressed={ui.attachTool === 'rect'} title="図の上をドラッグして、四角で配置します" onclick={() => { ui.attachTool = 'rect'; }}>四角で配置</button>
+            <button type="button" class="tool-btn" title="配置を取り消します" onclick={() => { ui.attachTarget = null; ui.message = null; }}>取消</button>
           </div>
         </div>
       {:else if ui.selectedDrawing !== null}
         <div class="tool-group">
-          <span class="group-title">選んだ描画：{itemNameOf(ui.selectedDrawing)}</span>
-          <div class="group-buttons">
-            <button type="button" class="tool-btn" class:active={ui.shapeTool === 'move'} aria-pressed={ui.shapeTool === 'move'} title="描画をドラッグして動かします" onclick={() => { ui.shapeTool = 'move'; }}>動かす</button>
-            {#if selectedShapeIsRectOrPoly}
-              <button type="button" class="tool-btn" class:active={ui.shapeTool === 'edge'} aria-pressed={ui.shapeTool === 'edge'} title="描画の辺をドラッグして、大きさを変えます" onclick={() => { ui.shapeTool = 'edge'; }}>辺を動かす</button>
-              <button type="button" class="tool-btn" class:active={ui.shapeTool === 'step'} aria-pressed={ui.shapeTool === 'step'} title="描画の辺に段差を付けて、L字などにします" onclick={() => { ui.shapeTool = 'step'; }}>段差を足す</button>
-            {/if}
-          </div>
+          <span class="group-title">選択中：{itemNameOf(ui.selectedDrawing)}</span>
+          <span class="selected-drawing-hint muted small">（中央ドラッグで移動、辺ドラッグでサイズ変更）</span>
         </div>
         <div class="tool-group">
           <span class="group-title">向き</span>
@@ -1006,13 +1023,13 @@
         <div class="tool-group">
           <span class="group-title">&nbsp;</span>
           <div class="group-buttons">
-            <button type="button" class="tool-btn danger" onclick={applyRemoveItemDrawing} title="このモノの描画を外します（モノと置き場はそのまま）">描画を外す</button>
-            <button type="button" class="tool-btn" onclick={() => { ui.selectedDrawing = null; ui.message = null; }} title="選ぶのをやめます">選ぶのをやめる</button>
+            <button type="button" class="tool-btn danger" onclick={applyRemoveItemDrawing} title="このモノを図面から削除します（モノと置き場はそのまま残ります）">図面から削除</button>
+            <button type="button" class="tool-btn" onclick={() => { ui.selectedDrawing = null; ui.message = null; }} title="選択を解除します">選択解除</button>
           </div>
         </div>
       {:else}
         <div class="toolbar-placeholder">
-          右（スマホでは下）のリストで『描画を付ける』を押すか、図の描画を押して選びます
+          右のリストで『配置する』を押すか、図の上のモノを押して選びます
         </div>
       {/if}
     </div>
@@ -1040,6 +1057,18 @@
   <!-- 図の表示領域 -->
   <div class="svg-wrapper">
     {#if kuukanDrawing}
+      {#if !isPlacing}
+        <div class="canvas-top-actions">
+          <button
+            type="button"
+            class="small ghost edit-kuukan-btn"
+            onclick={() => kuukanId && app.openKuukanEditor(kuukanId)}
+            title="間取りや仕切り、目印を編集します"
+          >
+            間取り編集
+          </button>
+        </div>
+      {/if}
       <div class="zoom-float" role="group" aria-label="表示">
         <button type="button" class="small" onclick={zoomIn} title="拡大します（ホイール・2本指でも）" aria-label="拡大">＋</button>
         <button type="button" class="small" onclick={zoomOut} title="縮小します" aria-label="縮小">−</button>
@@ -1077,10 +1106,11 @@
                 {@const labelX = rect.x0 * aspect + 8 / ui.view.scale}
                 {@const labelY = rect.y0 + 8 / ui.view.scale}
                 {@const isAreaHighlighted = Boolean(quickResult && (quickResult.perPlace.get(leafId) ?? 0) > 0)}
+                {@const isSelectedArea = selectedAreaId === leafId}
+                {@const isDimmed = Boolean(selectedAreaId && !isSelectedArea)}
                 <polygon
                   points={ptsStr}
                   class="area-polygon"
-                  class:selected={$app.view?.area === leafId}
                   class:highlighted={isAreaHighlighted}
                   style="fill: {isAreaHighlighted ? 'var(--accent-soft)' : AREA_FILLS[idx % AREA_FILLS.length]};"
                   vector-effect="non-scaling-stroke"
@@ -1096,16 +1126,6 @@
                 </text>
               {/if}
             {/each}
-
-            <!-- 選択されたエリアの強調枠線 -->
-            {#if $app.view?.area && regions.get($app.view.area)}
-              {@const selPoly = regions.get($app.view.area)!}
-              <polygon
-                points={selPoly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
-                class="selected-area-outline"
-                vector-effect="non-scaling-stroke"
-              />
-            {/if}
           {/if}
         </g>
 
@@ -1198,7 +1218,8 @@
                   {@const countStr = `${count}件`}
                   {@const badgeW = (16 + countStr.length * 8) / ui.view.scale}
                   {@const badgeH = 18 / ui.view.scale}
-                  <g class="area-count-badge">
+                  {@const isBadgeDimmed = Boolean($app.view?.area && $app.view.area !== leafId)}
+                  <g class="area-count-badge" class:dimmed={isBadgeDimmed}>
                     <rect
                       x={badgeX}
                       y={badgeY}
@@ -1298,6 +1319,7 @@
             {@const cxDisp = center[0] * aspect}
             {@const cy = center[1]}
             {@const rotDeg = (d.rotation ?? 0) * 45}
+            {@const isItemDimmed = Boolean(selectedAreaId && entry.item.place !== selectedAreaId)}
 
             <g
               class="item-drawing-group"
@@ -1306,6 +1328,7 @@
               class:highlight={isHighlight}
               class:quick-direct={isDirect}
               class:quick-storage={isQuickStorage}
+              class:dimmed={isItemDimmed}
               transform={rotDeg !== 0 ? `rotate(${rotDeg}, ${cxDisp}, ${cy})` : undefined}
             >
               {#if d.shape.type === 'point'}
@@ -1382,6 +1405,29 @@
                     vector-effect="non-scaling-stroke"
                   />
                 {/if}
+                {#if isPlacing && isSelected}
+                  {@const pts = shapeToPolyPoints(d.shape)}
+                  {#if pts}
+                    {#each pts as p1, i}
+                      {@const p2 = pts[(i + 1) % pts.length]!}
+                      {@const isHoriz = p1[1] === p2[1]}
+                      {@const midX = ((p1[0] + p2[0]) / 2) * aspect}
+                      {@const midY = (p1[1] + p2[1]) / 2}
+                      {@const hw = (isHoriz ? 16 : 6) / ui.view.scale}
+                      {@const hh = (isHoriz ? 6 : 16) / ui.view.scale}
+                      <rect
+                        x={midX - hw / 2}
+                        y={midY - hh / 2}
+                        width={hw}
+                        height={hh}
+                        rx={3 / ui.view.scale}
+                        ry={3 / ui.view.scale}
+                        class="edge-resize-handle"
+                        vector-effect="non-scaling-stroke"
+                      />
+                    {/each}
+                  {/if}
+                {/if}
                 <text
                   x={rx + rw / 2}
                   y={entry.isStorage && insideCount > 0 ? ry + rh / 2 - 6 / ui.view.scale : ry + rh / 2}
@@ -1425,6 +1471,27 @@
                     class="item-poly-inner"
                     vector-effect="non-scaling-stroke"
                   />
+                {/if}
+                {#if isPlacing && isSelected}
+                  {@const pts = d.shape.points}
+                  {#each pts as p1, i}
+                    {@const p2 = pts[(i + 1) % pts.length]!}
+                    {@const isHoriz = p1[1] === p2[1]}
+                    {@const midX = ((p1[0] + p2[0]) / 2) * aspect}
+                    {@const midY = (p1[1] + p2[1]) / 2}
+                    {@const hw = (isHoriz ? 16 : 6) / ui.view.scale}
+                    {@const hh = (isHoriz ? 6 : 16) / ui.view.scale}
+                    <rect
+                      x={midX - hw / 2}
+                      y={midY - hh / 2}
+                      width={hw}
+                      height={hh}
+                      rx={3 / ui.view.scale}
+                      ry={3 / ui.view.scale}
+                      class="edge-resize-handle"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  {/each}
                 {/if}
                 <text
                   x={cxDisp}
@@ -1529,6 +1596,128 @@
             </g>
           {/if}
         </g>
+
+        <!-- スポットライト全域減光レイヤー ＆ 選択エリア再描画（暗幕の上に明るく浮かび上がらせる） -->
+        {#if selectedAreaId && regions?.get(selectedAreaId)}
+          {@const selPoly = regions.get(selectedAreaId)!}
+          {@const selIdx = leafNodes.indexOf(selectedAreaId)}
+          {@const selPtsStr = selPoly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+          {@const selRect = getTopLeftRect(selPoly)}
+
+          <!-- 全体をほんのり薄暗く覆う半透明ディムレイヤー -->
+          <rect
+            x={vb.x - 20000}
+            y={vb.y - 20000}
+            width={vb.w + 40000}
+            height={vb.h + 40000}
+            class="spotlight-dim-rect"
+            pointer-events="none"
+          />
+
+          <!-- 選択エリアの下地（不透明なサーフェス色で暗幕を完全に遮断し、明るくする） -->
+          <polygon
+            points={selPtsStr}
+            class="spotlight-surface-base"
+            vector-effect="non-scaling-stroke"
+            pointer-events="none"
+          />
+
+          <!-- 選択されたエリアを暗幕の上に本来の明るい色で再描画 -->
+          <polygon
+            points={selPtsStr}
+            class="selected-spotlight-polygon"
+            style="fill: {AREA_FILLS[selIdx >= 0 ? selIdx % AREA_FILLS.length : 0]};"
+            vector-effect="non-scaling-stroke"
+            pointer-events="none"
+          />
+
+          <!-- 選択エリアの強調枠線 -->
+          <polygon
+            points={selPtsStr}
+            class="selected-area-outline"
+            vector-effect="non-scaling-stroke"
+            pointer-events="none"
+          />
+
+          <!-- 選択エリアの名前ラベル -->
+          <text
+            x={selRect.x0 * aspect + 8 / ui.view.scale}
+            y={selRect.y0 + 8 / ui.view.scale}
+            class="area-label selected-spotlight-label"
+            text-anchor="start"
+            dominant-baseline="hanging"
+            pointer-events="none"
+          >
+            {areaDisplayName(selectedAreaId)}
+          </text>
+
+          <!-- 選択エリア内のモノを暗幕の上に明るく再描画 -->
+          {#each kuukanItemDrawings.filter((e) => e.item.place === selectedAreaId) as entry}
+            {@const d = entry.drawing}
+            {@const it = entry.item}
+            {@const isSelected = ui.selectedDrawing === it.id}
+            {@const center = shapeCenter(d.shape)}
+            {@const cxDisp = center[0] * aspect}
+            {@const cy = center[1]}
+            {@const rotDeg = (d.rotation ?? 0) * 45}
+            <g
+              class="item-drawing-group selected-spotlight-item"
+              class:selected={isSelected}
+              transform={rotDeg !== 0 ? `rotate(${rotDeg}, ${cxDisp}, ${cy})` : undefined}
+              pointer-events="none"
+            >
+              {#if d.shape.type === 'point'}
+                {@const px = d.shape.at[0] * aspect}
+                {@const py = d.shape.at[1]}
+                {@const r = 8 / ui.view.scale}
+                <circle
+                  cx={px}
+                  cy={py}
+                  r={r}
+                  class="item-point"
+                  class:storage={entry.isStorage}
+                  vector-effect="non-scaling-stroke"
+                />
+              {:else if d.shape.type === 'rect'}
+                {@const { x, y, w, h } = d.shape}
+                <rect
+                  x={x * aspect}
+                  y={y}
+                  width={w * aspect}
+                  height={h}
+                  class="item-rect"
+                  class:storage={entry.isStorage}
+                  vector-effect="non-scaling-stroke"
+                />
+                <text
+                  x={(x + w / 2) * aspect}
+                  y={y + h / 2}
+                  class="item-label"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                >
+                  {it.name}
+                </text>
+              {:else if d.shape.type === 'poly'}
+                <polygon
+                  points={d.shape.points.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                  class="item-poly"
+                  class:storage={entry.isStorage}
+                  vector-effect="non-scaling-stroke"
+                />
+                <text
+                  x={cxDisp}
+                  y={cy}
+                  class="item-label"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                >
+                  {it.name}
+                </text>
+              {/if}
+            </g>
+          {/each}
+        {/if}
       </svg>
 
       <!-- 収納の「開く」ボタン（図の上に絶対位置で重ねる） -->
@@ -1621,6 +1810,24 @@
     color: var(--text-muted);
     white-space: nowrap;
     line-height: 52px;
+  }
+
+  .canvas-top-actions {
+    position: absolute;
+    right: var(--space-3);
+    top: var(--space-3);
+    z-index: 4;
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .edit-kuukan-btn {
+    font-weight: 500;
   }
 
   .zoom-float {
@@ -1760,11 +1967,35 @@
     user-select: none;
   }
 
+  .spotlight-dim-rect {
+    fill: rgba(0, 0, 0, 0.22);
+    pointer-events: none;
+    transition: fill var(--duration-fast);
+  }
+
+  :global([data-theme='dark']) .spotlight-dim-rect {
+    fill: rgba(0, 0, 0, 0.45);
+  }
+
+  .spotlight-surface-base {
+    fill: var(--surface);
+    pointer-events: none;
+  }
+
+  .selected-spotlight-polygon {
+    stroke: none;
+  }
+
+  .selected-spotlight-label {
+    fill: var(--text);
+    font-weight: 700;
+  }
+
   .selected-area-outline {
     fill: none;
     stroke: var(--accent);
-    stroke-width: 3px;
-    stroke-dasharray: 6 3;
+    stroke-width: 3.5px;
+    filter: drop-shadow(0 0 6px var(--accent-soft));
     pointer-events: none;
   }
 
@@ -2028,6 +2259,19 @@
     stroke-width: 2px;
     stroke-dasharray: 4 4;
     pointer-events: none;
+  }
+
+  .edge-resize-handle {
+    fill: var(--accent);
+    stroke: #ffffff;
+    stroke-width: 1.5px;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+    transition: transform var(--duration-fast);
+  }
+
+  .selected-drawing-hint {
+    margin-left: var(--space-2);
   }
 
   @media (max-width: 767.98px) {

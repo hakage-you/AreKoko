@@ -15,11 +15,13 @@
     planRemoveStorage,
     removeStorage,
   } from '../../core/ops/storage';
-  import { formatPlacePath } from '../../core/places';
+  import { formatPlacePath, kuukanOfPlace } from '../../core/places';
   import { timestampOfV7 } from '../../core/ids';
   import PlacePicker from './PlacePicker.svelte';
   import CategoryPicker from './CategoryPicker.svelte';
   import TagPicker from './TagPicker.svelte';
+  import { getBadgeStyle } from '../color';
+  import { tryGetViewUi } from '../view/viewUi.svelte';
 
   interface Props {
     id: Id;
@@ -106,11 +108,11 @@
     isAddingQty = false;
   }
 
-  const categoryName = $derived.by(() => {
-    if (!item || item.category === null || !$app.doc) return '未分類';
-    const cat = $app.doc.membership.categories.find((c) => c.id === item.category);
-    return cat ? cat.name : '未分類';
+  const currentCategory = $derived.by(() => {
+    if (!item || item.category === null || !$app.doc) return null;
+    return $app.doc.membership.categories.find((c) => c.id === item.category) ?? null;
   });
+  const categoryName = $derived(currentCategory ? currentCategory.name : '未分類');
 
   const tagObjects = $derived.by(() => {
     if (!item || !$app.doc) return [];
@@ -124,6 +126,40 @@
     if (!item || !$app.doc) return '';
     return formatPlacePath($app.doc, item.place);
   });
+
+  const ui = tryGetViewUi();
+  const currentKuukan = $derived($app.view?.kuukan ?? null);
+  const targetKuukan = $derived.by(() => {
+    if (!item || !$app.doc) return null;
+    return kuukanOfPlace($app.doc, item.place);
+  });
+  const hasDrawing = $derived.by(() => {
+    if (!targetKuukan || !$app.doc) return false;
+    return $app.doc.drawing.kuukans.some((k) => k.kuukan === targetKuukan);
+  });
+  const hasItemDrawing = $derived.by(() => {
+    if (!item || !$app.doc) return false;
+    return $app.doc.drawing.items.some((d) => d.item === id);
+  });
+
+  function handleStartPlacing(): void {
+    if (!item || !targetKuukan || !hasDrawing) return;
+    if (ui) {
+      ui.detailToRestore = id;
+      if (hasItemDrawing) {
+        ui.selectedDrawing = id;
+        ui.attachTarget = null;
+      } else {
+        ui.attachTarget = id;
+        ui.selectedDrawing = null;
+      }
+    }
+    if (currentKuukan !== targetKuukan) {
+      app.openView(targetKuukan);
+    }
+    app.setPlacing(true);
+    app.showDetail(null);
+  }
 
   const storageKuukan = $derived(
     $app.doc?.membership.kuukans.find((k) => k.owner === id),
@@ -159,8 +195,25 @@
   }
 
   function handleDeleteItem() {
-    app.apply((doc, ctx) => deleteItems(doc, [id], ctx));
-    onClose();
+    if (!item) return;
+    const name = item.name;
+    const isStorageItem = isStorage;
+    let message = `モノ「${name}」を削除しますか？`;
+    const details: string[] = [];
+    if (isStorageItem && storageKuukan) {
+      message = `「${name}」は収納です。削除すると中のクウカンがなくなり、中のモノは「${placePathString}」へ移ります。`;
+    }
+    app.confirm({
+      title: 'モノの削除',
+      message,
+      details,
+      confirmLabel: '削除する',
+      danger: true,
+      onConfirm: () => {
+        app.apply((doc, ctx) => deleteItems(doc, [id], ctx));
+        onClose();
+      },
+    });
   }
 
   function formatNoticeDate(isoDate: string): string {
@@ -198,6 +251,11 @@
         onblur={commitName}
         onkeydown={(e) => {
           if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+          if (e.key === 'Escape') {
+            e.stopPropagation();
+            nameInput = item?.name ?? '';
+            (e.currentTarget as HTMLInputElement).blur();
+          }
         }}
         placeholder="名前"
       />
@@ -224,6 +282,18 @@
         <div class="field-value place-path">
           {placePathString || '未設定'}
         </div>
+        {#if hasDrawing}
+          <div class="place-drawing-row">
+            <button
+              type="button"
+              class="small place-placing-btn"
+              onclick={handleStartPlacing}
+              title={hasItemDrawing ? '間取り図面上の位置を変更します' : '間取り図面上にこのモノを配置します'}
+            >
+              {hasItemDrawing ? '位置を変更' : '図面に配置'}
+            </button>
+          </div>
+        {/if}
       </section>
 
       <!-- カテゴリ -->
@@ -241,7 +311,10 @@
           </button>
         </div>
         <div class="field-value">
-          <span class="chip {item.category === null ? 'muted' : ''}">
+          <span
+            class="chip {item.category === null ? 'muted' : ''}"
+            style={getBadgeStyle(currentCategory?.color)}
+          >
             {categoryName}
           </span>
         </div>
@@ -266,7 +339,7 @@
             <span class="muted small">タグなし</span>
           {:else}
             {#each tagObjects as tag (tag.id)}
-              <span class="chip">
+              <span class="chip" style={getBadgeStyle(tag.color)}>
                 {tag.name}
                 <button
                   type="button"
@@ -293,6 +366,14 @@
             id="item-summary"
             bind:value={summaryInput}
             onblur={commitSummary}
+            onkeydown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                summaryInput = item?.summary ?? '';
+                isAddingSummary = false;
+                (e.currentTarget as HTMLTextAreaElement).blur();
+              }
+            }}
             placeholder="概要を入力…"
             rows="3"
           ></textarea>
@@ -313,6 +394,12 @@
             onblur={commitQty}
             onkeydown={(e) => {
               if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                qtyInput = item?.qty !== undefined ? String(item.qty) : '';
+                isAddingQty = false;
+                (e.currentTarget as HTMLInputElement).blur();
+              }
             }}
             placeholder="数量を入力…"
           />
@@ -395,19 +482,10 @@
               type="button"
               class="small"
               onclick={() => {
-                app.setQuery({ place: storageKuukan.id });
+                app.openView(storageKuukan.id);
               }}
             >
               中を見る
-            </button>
-            <button
-              type="button"
-              class="primary small"
-              onclick={() => {
-                app.openKuukanEditor(storageKuukan.id);
-              }}
-            >
-              クウカンを編集
             </button>
             <button type="button" class="danger small" onclick={handleRemoveStorage}>
               収納設定を削除する
@@ -483,10 +561,9 @@
 
 <style>
   .item-detail {
-    width: var(--detail-width);
+    width: 100%;
     height: 100%;
     background: var(--surface);
-    border-left: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -658,6 +735,28 @@
   input[type='number'] {
     max-width: 100%;
     min-width: 0;
+  }
+
+  .place-drawing-row {
+    margin-top: var(--space-2);
+  }
+
+  .place-placing-btn {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .place-placing-btn:hover {
+    background: var(--surface-3);
+    border-color: var(--accent);
   }
 
   .storage-actions {

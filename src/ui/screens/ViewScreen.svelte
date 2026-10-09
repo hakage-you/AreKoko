@@ -48,10 +48,28 @@
 
   function handleTogglePlacing(): void {
     if ($app.view?.placing) {
+      const restoreId = ui.selectedDrawing ?? ui.attachTarget ?? ui.detailToRestore;
       ui.attachTarget = null;
       ui.selectedDrawing = null;
+      ui.detailToRestore = null;
       app.setPlacing(false);
+      if (restoreId && $app.doc?.membership.items.some((it) => it.id === restoreId)) {
+        app.showDetail(restoreId);
+      }
     } else {
+      const currentDetail = $app.detail;
+      ui.detailToRestore = currentDetail;
+      ui.selectedDrawing = null;
+      ui.attachTarget = null;
+      if (currentDetail && $app.doc) {
+        const hasDrawing = $app.doc.drawing.items.some((d) => d.item === currentDetail);
+        if (hasDrawing) {
+          ui.selectedDrawing = currentDetail;
+        } else {
+          ui.attachTarget = currentDetail;
+        }
+      }
+      app.showDetail(null);
       app.setPlacing(true);
     }
   }
@@ -65,10 +83,23 @@
     app.setQuick('');
   }
 
-  function handleSearchFromView(): void {
-    app.searchFromView();
+  function handleCloseDetail(): void {
+    app.showDetail(null);
+    ui.selectedDrawing = null;
   }
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape') {
+      if ($app.detail) {
+        handleCloseDetail();
+      } else if ($app.view?.placing) {
+        handleTogglePlacing();
+      }
+    }
+  }}
+/>
 
 <div class="view-screen">
   <div class="main-content">
@@ -76,31 +107,24 @@
       <div class="header-top">
         <Breadcrumb />
         <div class="header-actions">
-          {#if !isUnset && kuukan}
-            <button
-              type="button"
-              class="small ghost"
-              onclick={handleEditKuukan}
-            >
-              編集
-            </button>
-          {/if}
           {#if hasDrawing}
             {#if $app.view?.placing}
               <button
                 type="button"
-                class="small primary"
+                class="small primary placing-active-btn"
                 onclick={handleTogglePlacing}
+                title="モノの配置を終了して閲覧画面に戻ります"
               >
-                配置を終える
+                配置を終了
               </button>
             {:else}
               <button
                 type="button"
-                class="small"
+                class="small placing-btn"
                 onclick={handleTogglePlacing}
+                title="間取りや棚の上にモノのマーク（点や長方形）を配置・移動します"
               >
-                配置モード
+                モノを配置
               </button>
             {/if}
           {/if}
@@ -122,8 +146,10 @@
                 type="button"
                 class="small ghost clear-btn"
                 onclick={handleClearQuick}
+                title="検索テキストを消去"
+                aria-label="検索テキストを消去"
               >
-                解除
+                ✕
               </button>
             {/if}
           </div>
@@ -146,37 +172,53 @@
           <ViewCanvas />
         </div>
         <div class="list-pane">
-          <ItemList />
+          {#if $app.detail && !$app.view?.placing}
+            <ItemDetail id={$app.detail} onClose={handleCloseDetail} />
+          {:else}
+            <ItemList />
+          {/if}
         </div>
       {:else}
-        <div class="list-pane full-width">
-          <div class="no-drawing-banner" role="status">
+        <div class="no-drawing-container">
+          <div class="no-drawing-inner">
             {#if isUnset}
-              <span class="banner-text">置き場が決まっていないモノです。モノの詳細で置き場を変えられます</span>
+              <div class="no-drawing-card unset-card">
+                <div class="card-body">
+                  <h3 class="card-title">置き場が決まっていないモノ</h3>
+                  <p class="card-desc">モノをクリックして詳細パネルから置き場を設定できます。</p>
+                </div>
+              </div>
             {:else}
-              <span class="banner-text">このクウカンには図がありません</span>
-              {#if kuukan}
-                <button
-                  type="button"
-                  class="small primary"
-                  onclick={handleRedraw}
-                >
-                  図を描く
-                </button>
-              {/if}
+              <div class="no-drawing-card">
+                <div class="card-body">
+                  <h3 class="card-title">このクウカンにはまだ間取り図がありません</h3>
+                  <p class="card-desc">
+                    図を描くと、部屋や収納の中でのモノの位置を視覚的に管理できるようになります。
+                  </p>
+                </div>
+                {#if kuukan}
+                  <button
+                    type="button"
+                    class="primary small"
+                    onclick={handleRedraw}
+                  >
+                    図を描く
+                  </button>
+                {/if}
+              </div>
             {/if}
+            <div class="no-drawing-list-wrapper">
+              {#if $app.detail}
+                <ItemDetail id={$app.detail} onClose={handleCloseDetail} />
+              {:else}
+                <ItemList />
+              {/if}
+            </div>
           </div>
-          <ItemList />
         </div>
       {/if}
     </div>
   </div>
-
-  {#if $app.detail}
-    <aside class="detail-sidebar" aria-label="モノの詳細">
-      <ItemDetail id={$app.detail} onClose={() => app.showDetail(null)} />
-    </aside>
-  {/if}
 </div>
 
 <style>
@@ -295,43 +337,84 @@
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
+    position: relative;
   }
 
-  /* 図のないクウカン：リストが主役。広い画面で間延びしないよう、読みやすい幅で中央に */
-  .list-pane.full-width {
+  .placing-btn {
+    border: 1px solid var(--border);
+    font-weight: 500;
+  }
+
+  .placing-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .placing-active-btn {
+    font-weight: 600;
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+
+
+  .no-drawing-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    overflow-y: auto;
+    background: var(--bg);
+    padding: var(--space-4);
+  }
+
+  .no-drawing-inner {
     width: 100%;
-    min-width: 0;
-    max-width: 880px;
-    margin: 0 auto;
-    border-left: none;
+    max-width: 820px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    height: 100%;
+  }
+
+  .no-drawing-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+  }
+
+  .no-drawing-card .card-body {
     flex: 1;
   }
 
-  .no-drawing-banner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--border);
-    font-size: var(--font-size-small);
-    color: var(--text-muted);
-    flex-shrink: 0;
+  .no-drawing-card .card-title {
+    margin: 0 0 var(--space-1) 0;
+    font-size: var(--font-size);
+    font-weight: 600;
+    color: var(--text);
   }
 
-  .banner-text {
+  .no-drawing-card .card-desc {
+    margin: 0;
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
     line-height: var(--line-height);
   }
 
-  .detail-sidebar {
-    width: var(--detail-width);
-    border-left: 1px solid var(--border);
+  .no-drawing-list-wrapper {
+    flex: 1;
+    min-height: 300px;
     background: var(--surface);
-    height: 100%;
-    overflow-y: auto;
-    flex-shrink: 0;
-    z-index: 20;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-sm);
+    position: relative;
   }
 
   @media (max-width: 767.98px) {
@@ -370,18 +453,15 @@
       flex: 1;
     }
 
-    .list-pane.full-width {
-      border-top: none;
-      min-height: 100%;
+    .no-drawing-container {
+      padding: var(--space-2);
     }
 
-    .detail-sidebar {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      border-left: none;
-      z-index: 50;
+    .no-drawing-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-2);
+      padding: var(--space-3);
     }
   }
 </style>
