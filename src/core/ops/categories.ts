@@ -171,3 +171,44 @@ export function deleteCategory(
     created: [],
   };
 }
+
+export function setCategoryColor(
+  doc: ArekokoDocument,
+  id: Id,
+  color: string | null,
+): OpResult {
+  const index = doc.membership.categories.findIndex(c => c.id === id);
+  if (index === -1) {
+    throw new OpError('notFound', `カテゴリが見つかりません: ${id}`);
+  }
+
+  const current = doc.membership.categories[index]!;
+  const normalizedColor = color ? color.trim() : undefined;
+  if (current.color === normalizedColor) {
+    return { doc, moved: [], created: [] };
+  }
+
+  const updated: Category = { ...current };
+  if (normalizedColor) {
+    updated.color = normalizedColor;
+  } else {
+    delete updated.color;
+  }
+
+  const newCategories = [...doc.membership.categories];
+  newCategories[index] = updated;
+
+  const newDoc: ArekokoDocument = {
+    ...doc,
+    membership: {
+      ...doc.membership,
+      categories: newCategories,
+    },
+  };
+
+  return {
+    doc: newDoc,
+    moved: [],
+    created: [],
+  };
+}

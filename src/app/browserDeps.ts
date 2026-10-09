@@ -7,6 +7,7 @@ import {
   FsAccessBackend,
   pickFileToOpen,
   pickFileToSave,
+  openDroppedFile,
 } from '../file/backend';
 import type { RecentEntry } from '../file/recent';
 import {
@@ -22,6 +23,7 @@ export function browserDeps(): AppDeps {
   return {
     pickFileToOpen,
     pickFileToSave,
+    openDroppedFile,
     supportsFileSystemAccess,
     listRecent,
     async addRecent(backend: FileBackend): Promise<void> {

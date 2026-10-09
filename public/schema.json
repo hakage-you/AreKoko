@@ -96,6 +96,7 @@
         "id": { "$ref": "#/$defs/id" },
         "name": { "type": "string" },
         "parent": { "$ref": "#/$defs/nullableId" },
+        "color": { "type": "string", "description": "ラベルの色（HEXカラーコード #rrggbb 等）。" },
         "notices": { "$ref": "#/$defs/notices" }
       }
     },
@@ -106,6 +107,7 @@
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "name": { "type": "string" },
+        "color": { "type": "string", "description": "ラベルの色（HEXカラーコード #rrggbb 等）。" },
         "notices": { "$ref": "#/$defs/notices" }
       }
     },

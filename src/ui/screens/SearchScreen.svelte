@@ -21,6 +21,18 @@
   function handleDeselectAll(): void {
     app.setSelection([]);
   }
+
+  $effect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && $app.detail) {
+        app.showDetail(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  });
 </script>
 
 <div class="search-screen">
@@ -98,7 +110,14 @@
   </div>
 
   {#if $app.detail}
-    <aside class="detail-sidebar" aria-label="モノの詳細">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_interactive_supports_focus -->
+    <div
+      class="detail-backdrop"
+      role="presentation"
+      onclick={() => app.showDetail(null)}
+    ></div>
+    <aside class="detail-drawer" aria-label="モノの詳細">
       <ItemDetail id={$app.detail} onClose={() => app.showDetail(null)} />
     </aside>
   {/if}
@@ -208,14 +227,46 @@
     overflow: hidden;
   }
 
-  .detail-sidebar {
-    width: var(--detail-width);
+  .detail-backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--overlay);
+    z-index: 40;
+    opacity: 0.5;
+    animation: fadeIn 0.15s ease;
+  }
+
+  .detail-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(440px, 100vw);
+    z-index: 50;
     border-left: 1px solid var(--border);
     background: var(--surface);
-    height: 100%;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.2);
     overflow-y: auto;
-    flex-shrink: 0;
-    z-index: 20;
+    overflow-x: hidden;
+    animation: slideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 0.5;
+    }
   }
 
   @media (max-width: 767.98px) {
@@ -238,13 +289,9 @@
       display: inline-flex;
     }
 
-    .detail-sidebar {
-      position: fixed;
-      inset: 0;
+    .detail-drawer {
       width: 100%;
-      height: 100%;
       border-left: none;
-      z-index: 50;
     }
   }
 </style>

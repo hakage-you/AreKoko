@@ -55,6 +55,34 @@ export function supportsFileSystemAccess(): boolean {
 }
 
 /**
+ * メモリ上のファイルバックエンド。見本のお試しやテストで使用。
+ */
+export class MemoryBackend implements FileBackend {
+  readonly canOverwrite: boolean;
+  private text: string;
+  private lastModified = Date.now();
+
+  constructor(readonly name: string, text = '', canOverwrite = false) {
+    this.text = text;
+    this.canOverwrite = canOverwrite;
+  }
+
+  async read(): Promise<{ text: string } & FileStat> {
+    return { text: this.text, lastModified: this.lastModified };
+  }
+
+  async stat(): Promise<FileStat> {
+    return { lastModified: this.lastModified };
+  }
+
+  async write(text: string): Promise<FileStat> {
+    this.text = text;
+    this.lastModified = Math.max(Date.now(), this.lastModified + 1);
+    return { lastModified: this.lastModified };
+  }
+}
+
+/**
  * File System Access API の FileSystemFileHandle を包むバックエンド（Chrome・Edge 等）。
  */
 export class FsAccessBackend implements FileBackend {
@@ -232,4 +260,53 @@ export async function pickFileToSave(suggestedName: string): Promise<FileBackend
   }
 
   return new DownloadBackend(suggestedName);
+}
+
+/**
+ * ドラッグ＆ドロップされた DataTransfer からファイルを開く。
+ * File System Access API がサポートされている場合、ハンドルを取得して上書き保存可能にする。
+ */
+export async function openDroppedFile(dataTransfer: DataTransfer): Promise<{ backend: FileBackend; text: string; stat: FileStat } | null> {
+  const items = Array.from(dataTransfer.items || []);
+  for (const item of items) {
+    if (item.kind === 'file') {
+      const getHandle = (item as unknown as { getAsFileSystemHandle?: () => Promise<FileSystemFileHandle> }).getAsFileSystemHandle;
+      if (typeof getHandle === 'function') {
+        try {
+          const handle = await getHandle.call(item);
+          if (handle && handle.kind === 'file') {
+            const fsBackend = new FsAccessBackend(handle);
+            const { text, lastModified } = await fsBackend.read();
+            const canWrite = await ensureWritePermission(handle);
+            const backend: FileBackend = canWrite ? fsBackend : new DownloadBackend(handle.name);
+            return { backend, text, stat: { lastModified } };
+          }
+        } catch {
+          // getAsFileSystemHandle が失敗した場合はフォールバック
+        }
+      }
+      const file = item.getAsFile();
+      if (file) {
+        const text = await file.text();
+        return {
+          backend: new DownloadBackend(file.name),
+          text,
+          stat: { lastModified: file.lastModified },
+        };
+      }
+    }
+  }
+
+  const files = Array.from(dataTransfer.files || []);
+  const file = files[0];
+  if (file) {
+    const text = await file.text();
+    return {
+      backend: new DownloadBackend(file.name),
+      text,
+      stat: { lastModified: file.lastModified },
+    };
+  }
+
+  return null;
 }

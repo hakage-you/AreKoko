@@ -1,14 +1,18 @@
 // アプリの設定（localStorage）。
 // 詳細設計UI 2.4、設計 8.7、原則7。
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+
 export interface AppSettings {
   autosave: boolean;
+  theme?: ThemeMode;
 }
 
 const SETTINGS_KEY = 'arekoko.settings';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   autosave: true,
+  theme: 'system',
 };
 
 function resolveStorage(storage?: Storage): Storage | null {
@@ -48,7 +52,11 @@ export function loadSettings(storage?: Storage): AppSettings {
       typeof parsed === 'object' &&
       typeof parsed.autosave === 'boolean'
     ) {
-      return { autosave: parsed.autosave };
+      const theme: ThemeMode =
+        parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system'
+          ? parsed.theme
+          : 'system';
+      return { autosave: parsed.autosave, theme };
     }
     return { ...DEFAULT_SETTINGS };
   } catch {

@@ -15,6 +15,7 @@
   import EditorScreen from './screens/EditorScreen.svelte';
   import ManageScreen from './screens/ManageScreen.svelte';
   import SettingsScreen from './screens/SettingsScreen.svelte';
+  import BottomNav from './components/BottomNav.svelte';
 
   let { store }: { store: AppStore } = $props();
 
@@ -69,6 +70,19 @@
         return;
       }
 
+      if (key === 'k') {
+        event.preventDefault();
+        store.setScreen('search');
+        setTimeout(() => {
+          const input = document.querySelector<HTMLInputElement>('.search-bar input, input[type="search"]');
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        }, 50);
+        return;
+      }
+
       if (isEditableElement(document.activeElement)) {
         return;
       }
@@ -86,16 +100,36 @@
       }
     };
 
+    const handleWindowKeyDown = (event: KeyboardEvent) => {
+      if (!$app.doc) return;
+      if (isEditableElement(document.activeElement)) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === '/') {
+        event.preventDefault();
+        store.setScreen('search');
+        setTimeout(() => {
+          const input = document.querySelector<HTMLInputElement>('.search-bar input, input[type="search"]');
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        }, 50);
+      }
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleWindowKeyDown);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleWindowKeyDown);
     };
   });
 </script>
@@ -105,7 +139,7 @@
     <StartScreen />
   {:else}
     <Header />
-    <main class="main-content">
+    <main class="main-content" class:has-bottom-nav={$app.screen !== 'editor'}>
       {#if $app.screen === 'search'}
         <SearchScreen />
       {:else if $app.screen === 'kuukans'}
@@ -120,6 +154,9 @@
         <SettingsScreen />
       {/if}
     </main>
+    {#if $app.screen !== 'editor'}
+      <BottomNav />
+    {/if}
   {/if}
 
   <HelpPanel />
@@ -157,5 +194,11 @@
     flex-direction: column;
     overflow: auto;
     position: relative;
+  }
+
+  @media (max-width: 767.98px) {
+    .main-content.has-bottom-nav {
+      padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    }
   }
 </style>

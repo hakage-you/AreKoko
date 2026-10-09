@@ -3,6 +3,42 @@
 
   const app = getApp();
 
+  let isDraggingOver = $state(false);
+  let dragDepth = $state(0);
+
+  function handleDragEnter(e: DragEvent): void {
+    e.preventDefault();
+    dragDepth++;
+    if (e.dataTransfer?.types.includes('Files')) {
+      isDraggingOver = true;
+    }
+  }
+
+  function handleDragOver(e: DragEvent): void {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  function handleDragLeave(e: DragEvent): void {
+    e.preventDefault();
+    dragDepth--;
+    if (dragDepth <= 0) {
+      dragDepth = 0;
+      isDraggingOver = false;
+    }
+  }
+
+  async function handleDrop(e: DragEvent): Promise<void> {
+    e.preventDefault();
+    dragDepth = 0;
+    isDraggingOver = false;
+    if (e.dataTransfer) {
+      await app.openDroppedFile(e.dataTransfer);
+    }
+  }
+
   function formatOpenedAt(openedAt: number): string {
     try {
       const date = new Date(openedAt);
@@ -19,29 +55,65 @@
   }
 </script>
 
-<div class="start-screen">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="start-screen"
+  class:is-dragging={isDraggingOver}
+  ondragenter={handleDragEnter}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
+>
   <div class="start-card">
+    {#if isDraggingOver}
+      <div class="drop-overlay">
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        <p class="drop-title">ファイルをドロップして開く</p>
+        <p class="drop-subtitle">.json ファイルに対応しています</p>
+      </div>
+    {/if}
+
     <header class="app-hero">
       <h1 class="app-title">アレココ</h1>
       <p class="app-tagline">
-        物の置き場所を、自分で描いた間取りとリストで管理します。データはあなたが選んだファイル（JSON）にだけ保存され、どこにも送られません。
+        物の置き場所を、自分で描いた間取りとリストで管理します。<br />
+        データはあなたの端末にのみ保存され、外部送信もされません。
       </p>
     </header>
 
-    <div class="primary-actions">
+    <div class="primary-actions-group">
+      <div class="primary-actions">
+        <button
+          type="button"
+          class="primary action-btn"
+          onclick={() => void app.newDocument()}
+        >
+          新しく作る
+        </button>
+        <button
+          type="button"
+          class="action-btn"
+          onclick={() => void app.openFile()}
+        >
+          ファイルを開く
+        </button>
+      </div>
+      <p class="drop-hint">またはファイルを画面にドラッグ＆ドロップ</p>
+    </div>
+
+    <div class="sample-action">
       <button
         type="button"
-        class="primary action-btn"
-        onclick={() => void app.newDocument()}
+        class="sample-btn"
+        onclick={() => void app.openSampleDocument()}
       >
-        新しく作る
-      </button>
-      <button
-        type="button"
-        class="action-btn"
-        onclick={() => void app.openFile()}
-      >
-        ファイルを開く
+        <span class="sample-badge">お試し</span>
+        <span class="sample-text">見本データですぐ触ってみる</span>
+        <span class="sample-subtext">ファイル不要</span>
       </button>
     </div>
 
@@ -51,7 +123,7 @@
         class="ghost"
         onclick={() => app.openHelp('start')}
       >
-        使い方
+        使い方・ヘルプ
       </button>
     </div>
 
@@ -105,6 +177,7 @@
   }
 
   .start-card {
+    position: relative;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -115,6 +188,53 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
+    transition: border-color var(--duration-fast);
+  }
+
+  .start-screen.is-dragging .start-card {
+    border-color: var(--accent);
+  }
+
+  .drop-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--surface);
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    z-index: 20;
+    pointer-events: none;
+    box-shadow: var(--shadow);
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .drop-icon {
+    width: 44px;
+    height: 44px;
+    color: var(--accent);
+    margin-bottom: var(--space-1);
+  }
+
+  .drop-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .drop-subtitle {
+    margin: 0;
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
   }
 
   .app-hero {
@@ -122,22 +242,81 @@
   }
 
   .app-title {
-    margin: 0 0 var(--space-2);
-    font-size: 32px;
+    margin: 0 0 var(--space-3);
+    font-size: 30px;
     font-weight: 700;
     color: var(--accent);
+    letter-spacing: 0.04em;
   }
 
   .app-tagline {
     margin: 0;
     color: var(--text-muted);
     font-size: var(--font-size);
-    line-height: var(--line-height);
+    line-height: 1.6;
+  }
+
+  .primary-actions-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
   .primary-actions {
     display: flex;
     gap: var(--space-3);
+  }
+
+  .drop-hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .sample-action {
+    display: flex;
+  }
+
+  .sample-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    background: var(--accent-soft);
+    border: 1px dashed var(--accent);
+    color: var(--accent);
+    border-radius: var(--radius);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-small);
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+
+  .sample-btn:hover {
+    background: var(--surface-2);
+    transform: translateY(-1px);
+  }
+
+  .sample-badge {
+    background: var(--accent);
+    color: var(--accent-text);
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .sample-text {
+    flex: 1;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .sample-subtext {
+    color: var(--text-muted);
+    font-size: 11px;
   }
 
   .action-btn {

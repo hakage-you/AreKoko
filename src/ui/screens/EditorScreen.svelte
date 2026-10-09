@@ -164,10 +164,6 @@
         <button type="button" class="ghost small" onclick={handleCancelDraft} title="下書きを捨てて、開く前の画面に戻ります">
           下書きを捨てる
         </button>
-      {:else}
-        <button type="button" class="ghost small" onclick={handleLeaveEditor} title="編集を終えて、開く前の画面に戻ります（変更はもう文書に入っています）">
-          ← 戻る
-        </button>
       {/if}
       <h2 class="editor-title">{title}</h2>
       <div class="history-buttons">
@@ -194,6 +190,15 @@
           title="下書きを文書に入れます"
         >
           確定する
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="primary small"
+          onclick={handleLeaveEditor}
+          title="編集を終えて、開く前の画面に戻ります（変更はもう文書に入っています）"
+        >
+          編集を終了
         </button>
       {/if}
     </div>
