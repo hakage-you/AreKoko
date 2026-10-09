@@ -273,4 +273,60 @@ describe('結合試験: クウカンビュー (段階6)', () => {
     // 描画だけの変更では updatedAt を変えない（詳細設計 8.1）
     expectHealthy(app, s.file);
   });
+
+  it('V-P: 配置モード切り替えと詳細の連携が正常に動作する', async () => {
+    const s = await sketch();
+    const { app } = s;
+    app.openView(s.roomA);
+
+    // 詳細画面を開いた状態で配置モードを開始すると詳細が閉じられ、終了すると戻る
+    app.showDetail(s.tana);
+    expect(app.state.detail).toBe(s.tana);
+
+    app.setPlacing(true);
+    expect(app.state.view?.placing).toBe(true);
+    expect(app.state.detail).toBe(null);
+
+    app.setPlacing(false);
+    expect(app.state.view?.placing).toBe(false);
+
+    expectHealthy(app, s.file);
+  });
+
+  it('V-A: 間取り編集でエリア分割・削除後に間取り編集を終了すると存在しない（葉でない）エリアの選択がリセットされる', async () => {
+    const s = await sketch();
+    const { app } = s;
+
+    // yuka1 を選択してクウカンビューを開く
+    app.openView(s.roomA, { area: s.yuka1 });
+    expect(app.state.view?.area).toBe(s.yuka1);
+
+    // 間取り編集を開く
+    app.openKuukanEditor(s.roomA);
+    expect(app.state.screen).toBe('editor');
+
+    // yuka1（床1）をさらに分割して床1-1, 床1-2 にする（yuka1 は親ノードになり葉ではなくなる）
+    app.apply((d, ctx) => splitAt(d, s.roomA, 'y', [2500, 5000], ctx));
+
+    // 間取り編集を終了して戻る
+    app.leaveEditor();
+    expect(app.state.screen).toBe('view');
+    // yuka1 はもはや葉エリアではないため、area は null にリセットされている
+    expect(app.state.view?.area).toBe(null);
+
+    // 葉でない親ノードを selectViewArea や openView に渡しても選択されない
+    app.selectViewArea(s.yuka1);
+    expect(app.state.view?.area).toBe(null);
+
+    app.openView(s.roomA, { area: s.yuka1 });
+    expect(app.state.view?.area).toBe(null);
+
+    // 新しくできた葉エリア（床1-1）は選択できる
+    const areas = areasOf(app, s.roomA);
+    const leaf = areas.find(a => a.name === '床1-1')!;
+    app.selectViewArea(leaf.id);
+    expect(app.state.view?.area).toBe(leaf.id);
+
+    expectHealthy(app, s.file);
+  });
 });

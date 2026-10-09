@@ -8,14 +8,16 @@ import { createEmptyDocument } from '../core/document';
 import { serializeDocument } from '../core/serialize';
 import { History } from '../core/history';
 import { OpError } from '../core/ops/common';
-import { kuukanOfPlace } from '../core/places';
+import { kuukanOfPlace, isValidLeafArea } from '../core/places';
 import { NIL_ID } from '../core/constants';
 import type { OpContext, OpResult } from '../core/ops/common';
 import type { FileBackend, FileStat } from '../file/backend';
+import { MemoryBackend, openDroppedFile as defaultOpenDroppedFile } from '../file/backend';
 import type { SaveStatus, Timers } from '../file/session';
 import { DocumentSession } from '../file/session';
 import type { RecentEntry } from '../file/recent';
-import type { AppSettings } from '../file/settings';
+import type { AppSettings, ThemeMode } from '../file/settings';
+import { sampleDocument } from '../core/sample';
 import type { SearchQuery } from '../search/search';
 import type { Point } from '../core/types';
 import type { Relocation } from '../core/ops/common';
@@ -92,6 +94,7 @@ export interface AppState {
   selection: ReadonlySet<Id>;
   recent: RecentEntry[];
   supportsOverwrite: boolean;
+  theme: ThemeMode;
   editor: EditorTarget | null;     // screen が 'editor' のときだけ
   view: ViewTarget | null;         // screen が 'view' のとき（と、そこから開いたクウカン編集の間）だけ
   help: HelpTopic | null;          // 開いているヘルプ
@@ -100,6 +103,7 @@ export interface AppState {
 export interface AppDeps {
   pickFileToOpen(): Promise<{ backend: FileBackend; text: string; stat: FileStat } | null>;
   pickFileToSave(suggestedName: string): Promise<FileBackend | null>;
+  openDroppedFile?(dataTransfer: DataTransfer): Promise<{ backend: FileBackend; text: string; stat: FileStat } | null>;
   supportsFileSystemAccess(): boolean;
   listRecent(): Promise<RecentEntry[]>;
   addRecent(backend: FileBackend): Promise<void>;
@@ -148,6 +152,7 @@ export class AppStore {
       selection: new Set(),
       recent: [],
       supportsOverwrite: deps.supportsFileSystemAccess(),
+      theme: 'system',
       editor: null,
       view: null,
       help: null,
@@ -198,6 +203,8 @@ export class AppStore {
 
   async init(): Promise<void> {
     const settings = this.deps.loadSettings();
+    const theme = settings.theme ?? 'system';
+    this.applyTheme(theme);
     let recent: RecentEntry[] = [];
     try {
       recent = await this.deps.listRecent();
@@ -206,6 +213,7 @@ export class AppStore {
     }
     this.updateState({
       autosave: settings.autosave,
+      theme,
       recent,
       supportsOverwrite: this.deps.supportsFileSystemAccess(),
     });
@@ -263,10 +271,30 @@ export class AppStore {
     await this.deps.addRecent(backend);
   }
 
+  async openSampleDocument(): Promise<void> {
+    const doc = sampleDocument();
+    const text = serializeDocument(doc);
+    const backend = new MemoryBackend('見本.json', text, false);
+    const stat: FileStat = { lastModified: Date.now() };
+    await this.processOpenedContent(backend, text, stat);
+  }
+
   async openFile(): Promise<void> {
     const result = await this.deps.pickFileToOpen();
     if (!result) return;
     await this.processOpenedContent(result.backend, result.text, result.stat);
+  }
+
+  async openDroppedFile(dataTransfer: DataTransfer): Promise<void> {
+    try {
+      const result = this.deps.openDroppedFile
+        ? await this.deps.openDroppedFile(dataTransfer)
+        : await defaultOpenDroppedFile(dataTransfer);
+      if (!result) return;
+      await this.processOpenedContent(result.backend, result.text, result.stat);
+    } catch {
+      this.showToast('error', 'ドロップされたファイルを読み込めませんでした');
+    }
   }
 
   async openRecent(entry: RecentEntry): Promise<void> {
@@ -471,7 +499,7 @@ export class AppStore {
     if (!doc.membership.kuukans.some(k => k.id === v.kuukan)) {
       return this._state.screen === 'view' ? { screen: 'kuukans', view: null } : { view: null };
     }
-    const area = v.area !== null && doc.membership.areas.some(a => a.id === v.area && a.kuukan === v.kuukan) ? v.area : null;
+    const area = isValidLeafArea(doc, v.kuukan, v.area) ? v.area : null;
     const focus = v.focus !== null && doc.membership.items.some(it => it.id === v.focus) ? v.focus : null;
     // 描画がなくなったら配置モードを終える
     const placing = v.placing && doc.drawing.kuukans.some(d => d.kuukan === v.kuukan);
@@ -558,13 +586,31 @@ export class AppStore {
   }
 
   setAutosave(on: boolean): void {
-    this.deps.saveSettings({ autosave: on });
+    const settings = this.deps.loadSettings();
+    this.deps.saveSettings({ ...settings, autosave: on });
     this.session?.setAutosave(on);
     this.updateState({
       autosave: on,
       saveStatus: this.session?.status ?? this._state.saveStatus,
       dirty: this.session?.dirty ?? this._state.dirty,
     });
+  }
+
+  setTheme(theme: ThemeMode): void {
+    const settings = this.deps.loadSettings();
+    this.deps.saveSettings({ ...settings, theme });
+    this.applyTheme(theme);
+    this.updateState({ theme });
+  }
+
+  private applyTheme(theme: ThemeMode): void {
+    if (typeof document !== 'undefined') {
+      if (theme === 'system') {
+        delete document.documentElement.dataset.theme;
+      } else {
+        document.documentElement.dataset.theme = theme;
+      }
+    }
   }
 
   async resolveConflict(choice: 'reload' | 'overwrite' | 'saveAs'): Promise<void> {
@@ -759,7 +805,7 @@ export class AppStore {
   private doOpenView(kuukan: Id, opts: { area?: Id | null; quick?: string; focus?: Id | null }): void {
     const doc = this._state.doc;
     if (!doc || !doc.membership.kuukans.some(k => k.id === kuukan)) return;
-    const area = opts.area != null && doc.membership.areas.some(a => a.id === opts.area && a.kuukan === kuukan) ? opts.area : null;
+    const area = opts.area != null && isValidLeafArea(doc, kuukan, opts.area) ? opts.area : null;
     const same = this._state.screen === 'view' && this._state.view?.kuukan === kuukan;
     if (!same) {
       this.history.clear();
@@ -777,7 +823,9 @@ export class AppStore {
 
   selectViewArea(area: Id | null): void {
     const v = this._state.view;
+    const doc = this._state.doc;
     if (!v || v.area === area) return;
+    if (area !== null && doc && !isValidLeafArea(doc, v.kuukan, area)) return;
     this.updateState({ view: { ...v, area } });
   }
 
@@ -787,13 +835,15 @@ export class AppStore {
     this.updateState({ view: { ...v, quick: text, focus: null } });
   }
 
-  /** 配置モードの入り切り。履歴は消さない（設計 10章）。描画のないクウカンでは入らない。 */
   setPlacing(on: boolean): void {
     const v = this._state.view;
     const doc = this._state.doc;
     if (!v || !doc || v.placing === on) return;
     if (on && !doc.drawing.kuukans.some(d => d.kuukan === v.kuukan)) return;
-    this.updateState({ view: { ...v, placing: on } });
+    this.updateState({
+      view: { ...v, placing: on },
+      ...(on ? { detail: null } : {}),
+    });
   }
 
   /** 簡易検索の続きをサガシモノで（設計 8.8：文字と置き場を引き継ぐ）。 */
