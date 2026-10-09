@@ -1,6 +1,7 @@
 import type { Id, Marker, Partition, Point } from '../core/types';
 import { COORD_MAX } from '../core/constants';
 import type { Polygon } from '../geometry/types';
+import type { AreaTree } from '../geometry/regions';
 import { boundedSegment } from '../geometry/partition';
 import { boundingRect } from '../geometry/polygon';
 
@@ -89,26 +90,48 @@ export function lineSegments(
       }
     }
 
-    // N等分（または boundedSegment が取れなかった場合のフォールバック）：節の外接長方形を横切る線
+    // N等分（または boundedSegment が取れなかった場合のフォールバック）
     const rect = boundingRect(poly);
     for (let i = 0; i < partition.at.length; i++) {
       const val = partition.at[i];
       if (val === undefined) continue;
 
       if (partition.axis === 'x') {
-        segments.push({
-          node: partition.area,
-          lineIndex: i,
-          from: [val, rect.y0],
-          to: [val, rect.y1],
-        });
+        const midY = Math.floor((rect.y0 + rect.y1) / 2);
+        const seg = boundedSegment(poly, 'x', [val, midY]);
+        if (seg) {
+          segments.push({
+            node: partition.area,
+            lineIndex: i,
+            from: seg.from,
+            to: seg.to,
+          });
+        } else {
+          segments.push({
+            node: partition.area,
+            lineIndex: i,
+            from: [val, rect.y0],
+            to: [val, rect.y1],
+          });
+        }
       } else {
-        segments.push({
-          node: partition.area,
-          lineIndex: i,
-          from: [rect.x0, val],
-          to: [rect.x1, val],
-        });
+        const midX = Math.floor((rect.x0 + rect.x1) / 2);
+        const seg = boundedSegment(poly, 'y', [midX, val]);
+        if (seg) {
+          segments.push({
+            node: partition.area,
+            lineIndex: i,
+            from: seg.from,
+            to: seg.to,
+          });
+        } else {
+          segments.push({
+            node: partition.area,
+            lineIndex: i,
+            from: [rect.x0, val],
+            to: [rect.x1, val],
+          });
+        }
       }
     }
   }
@@ -152,28 +175,78 @@ function distToSegment(p: Point, seg: { from: Point; to: Point }): number {
   return Math.hypot(px - projX, py - projY);
 }
 
+/** 木構造におけるノードの深さ（root は 0、子は 1、孫は 2 ...）を計算する。 */
+function getNodeDepth(tree: AreaTree, target: Id): number {
+  if (tree.root === target) return 0;
+  const queue: [Id, number][] = [[tree.root, 0]];
+  const visited = new Set<Id>([tree.root]);
+  while (queue.length > 0) {
+    const [curr, d] = queue.shift()!;
+    const kids = tree.children.get(curr) ?? [];
+    for (const kid of kids) {
+      if (kid === target) return d + 1;
+      if (!visited.has(kid)) {
+        visited.add(kid);
+        queue.push([kid, d + 1]);
+      }
+    }
+  }
+  return 0;
+}
+
+/** 線分の長さを計算する。 */
+function segmentLength(seg: { from: Point; to: Point }): number {
+  return Math.hypot(seg.to[0] - seg.from[0], seg.to[1] - seg.from[1]);
+}
+
 /**
  * 指定した点 p に tolerance 以内で最も近い仕切りの線分を判定する。
+ * 距離が同等（または微小差内）の場合は、より深い階層（子の線）および短い線分を優先する。
  */
 export function hitLine(
   regions: Map<Id, Polygon>,
   partitions: Partition[],
   p: Point,
   tolerance: number,
+  tree?: AreaTree,
 ): { node: Id; lineIndex: number } | null {
   const segments = lineSegments(regions, partitions);
-  let bestDist = Infinity;
-  let bestResult: { node: Id; lineIndex: number } | null = null;
+  let bestResult: { node: Id; lineIndex: number; dist: number; depth: number; length: number } | null = null;
+
+  // 許容誤差の 1/4 または 20 単位以内を「実質的に同等の近接」とみなす
+  const DIST_EPSILON = Math.min(tolerance * 0.25, 20);
 
   for (const seg of segments) {
     const dist = distToSegment(p, seg);
-    if (dist <= tolerance && dist < bestDist) {
-      bestDist = dist;
-      bestResult = { node: seg.node, lineIndex: seg.lineIndex };
+    if (dist > tolerance) continue;
+
+    const depth = tree ? getNodeDepth(tree, seg.node) : 0;
+    const length = segmentLength(seg);
+
+    if (!bestResult) {
+      bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
+      continue;
+    }
+
+    // 1. 明らかに距離が近い場合は更新
+    if (dist < bestResult.dist - DIST_EPSILON) {
+      bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
+    } else if (Math.abs(dist - bestResult.dist) <= DIST_EPSILON) {
+      // 2. 距離が同等（交点・T字路・端点など）の場合、より深い階層（子の線）を優先
+      if (depth > bestResult.depth) {
+        bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
+      } else if (depth === bestResult.depth) {
+        // 深さも同じなら、より短い線分（局所的な線）を優先
+        if (length < bestResult.length - 1e-4) {
+          bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
+        } else if (Math.abs(length - bestResult.length) <= 1e-4 && dist < bestResult.dist) {
+          bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
+        }
+      }
     }
   }
 
-  return bestResult;
+  return bestResult ? { node: bestResult.node, lineIndex: bestResult.lineIndex } : null;
 }
 
 /** 点とマーカーの最短距離を計算する。 */

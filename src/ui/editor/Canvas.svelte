@@ -21,8 +21,9 @@
     hitLine,
     hitMarker,
   } from '../../editor/view';
-  import { moveLine, splitAt } from '../../core/ops/areas';
-  import { addMarker, moveMarkers, updateMarker } from '../../core/ops/markers';
+  import { moveLine, splitAt, deleteLine, planDeleteLine } from '../../core/ops/areas';
+  import { addMarker, moveMarkers, updateMarker, deleteMarkers } from '../../core/ops/markers';
+  import { formatPlacePath } from '../../core/places';
   import { moveEdge, addStep, edgeAt } from '../../editor/outline';
 
   const app = getApp();
@@ -141,6 +142,36 @@
     return list;
   });
 
+  interface ResizeHandle {
+    index: number;
+    cx: number;
+    cy: number;
+    isHoriz: boolean;
+  }
+
+  const outlineResizeHandles = $derived.by((): ResizeHandle[] => {
+    const isDraft = $app.editor?.kind === 'draft';
+    if (!isDraft || !kuukanDrawing || kuukanDrawing.outline.length === 0) return [];
+    if (ui.tool !== 'select') return [];
+    const pts = kuukanDrawing.outline;
+    const n = pts.length;
+    const handles: ResizeHandle[] = [];
+    for (let i = 0; i < n; i++) {
+      const p1 = pts[i]!;
+      const p2 = pts[(i + 1) % n]!;
+      const isHoriz = p1[1] === p2[1];
+      const midX = (p1[0] + p2[0]) / 2;
+      const midY = (p1[1] + p2[1]) / 2;
+      handles.push({
+        index: i,
+        cx: midX * aspect,
+        cy: midY,
+        isHoriz,
+      });
+    }
+    return handles;
+  });
+
   // ResizeObserver でコンテナサイズ測定
   $effect(() => {
     if (!containerEl) return;
@@ -187,6 +218,92 @@
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       el.removeEventListener('wheel', onWheel);
+    };
+  });
+
+  function isEditableElement(el: Element | null): boolean {
+    if (!el) return false;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    if ((el as HTMLElement).isContentEditable) return true;
+    return false;
+  }
+
+  // キーボードショートカット（Escapeで選択解除・ツール復帰、Delete/Backspaceで削除）
+  $effect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditableElement(document.activeElement)) return;
+
+      if (e.key === 'Escape') {
+        let handled = false;
+        if (ui.selectedMarkers.length > 0) {
+          ui.selectedMarkers = [];
+          handled = true;
+        }
+        if (ui.selectedLine !== null) {
+          ui.selectedLine = null;
+          handled = true;
+        }
+        if (ui.selectedArea !== null) {
+          ui.selectedArea = null;
+          handled = true;
+        }
+        if (ui.tool !== 'select') {
+          ui.tool = 'select';
+          handled = true;
+        }
+        if (handled) {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (ui.selectedMarkers.length > 0) {
+          e.preventDefault();
+          const ids = [...ui.selectedMarkers];
+          applyToEditor(app, $app, (d) => deleteMarkers(d, ids));
+          ui.selectedMarkers = [];
+          return;
+        }
+
+        if (ui.selectedLine && doc) {
+          e.preventDefault();
+          const { node, lineIndex } = ui.selectedLine;
+          if ($app.editor?.kind === 'kuukan') {
+            const plan = planDeleteLine(doc, node, lineIndex);
+            const details = plan.relocations.map((r) => {
+              const fromPath = formatPlacePath(doc!, r.from);
+              const toPath = formatPlacePath(doc!, r.to);
+              return `${fromPath} から ${r.items.length}件 → ${toPath}`;
+            });
+            app.confirm({
+              title: '仕切りの線の削除',
+              message: '選択した仕切りの線を削除します。',
+              details,
+              confirmLabel: '削除する',
+              danger: true,
+              onConfirm: () => {
+                applyToEditor(app, $app, (d, ctx) =>
+                  deleteLine(d, node, lineIndex, ctx),
+                );
+                ui.selectedLine = null;
+              },
+            });
+          } else {
+            applyToEditor(app, $app, (d, ctx) =>
+              deleteLine(d, node, lineIndex, ctx),
+            );
+            ui.selectedLine = null;
+          }
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
     };
   });
 
@@ -395,6 +512,40 @@
     const isDraft = $app.editor?.kind === 'draft';
 
     if (ui.tool === 'select') {
+      // 0a. 選択中の単一マーカーの辺が押された場合、マーカー辺ドラッグ
+      if (ui.selectedMarkers.length === 1) {
+        const selMId = ui.selectedMarkers[0]!;
+        const targetMarker = markers.find((m) => m.id === selMId);
+        if (targetMarker && (targetMarker.shape.type === 'rect' || targetMarker.shape.type === 'poly')) {
+          const pts = getMarkerPoints(targetMarker);
+          if (pts) {
+            const pLocal = toMarkerLocal(pRatio, targetMarker);
+            const edgeIndex = edgeAt(pts, pLocal, tol12);
+            if (edgeIndex !== null) {
+              activeDrag = {
+                kind: 'markerEdge',
+                markerId: selMId,
+                edgeIndex,
+                startP: pLocal,
+                points: pts,
+              };
+              return;
+            }
+          }
+        }
+      }
+
+      // 0b. 下書き時、外形の辺（ツマミ）が押された場合、外形辺ドラッグ
+      if (isDraft && kuukanDrawing.outline.length > 0) {
+        const edgeIndex = edgeAt(kuukanDrawing.outline, pRatio, tol12);
+        const hitMId = hitMarker(markers, pRatio, tol12);
+        const lineHit = regions && kuukanGeometry ? hitLine(regions, kuukanGeometry.partitions, pRatio, tol8, kuukanGeometry.tree) : null;
+        if (edgeIndex !== null && !hitMId && !lineHit) {
+          activeDrag = { kind: 'outlineEdge', edgeIndex, startP: pRatio };
+          return;
+        }
+      }
+
       // 1. マーカー判定
       const hitMId = hitMarker(markers, pRatio, tol12);
       if (hitMId) {
@@ -435,7 +586,7 @@
 
       // 2. 仕切り線判定
       if (regions && kuukanGeometry) {
-        const lineHit = hitLine(regions, kuukanGeometry.partitions, pRatio, tol8);
+        const lineHit = hitLine(regions, kuukanGeometry.partitions, pRatio, tol8, kuukanGeometry.tree);
         if (lineHit) {
           ui.selectedLine = lineHit;
           ui.selectedArea = null;
@@ -1047,6 +1198,24 @@
           class="kuukan-outline"
           vector-effect="non-scaling-stroke"
         />
+        {#if outlineResizeHandles.length > 0}
+          <g class="outline-handles-layer">
+            {#each outlineResizeHandles as h (h.index)}
+              {@const hw = (h.isHoriz ? 18 : 6) / ui.view.scale}
+              {@const hh = (h.isHoriz ? 6 : 18) / ui.view.scale}
+              <rect
+                x={h.cx - hw / 2}
+                y={h.cy - hh / 2}
+                width={hw}
+                height={hh}
+                rx={3 / ui.view.scale}
+                ry={3 / ui.view.scale}
+                class="edge-resize-handle"
+                vector-effect="non-scaling-stroke"
+              />
+            {/each}
+          </g>
+        {/if}
       </g>
 
       <!-- 4. 仕切りの線 -->
@@ -1113,6 +1282,29 @@
               >
                 {m.name}
               </text>
+              {#if isMarkerSelected && ui.selectedMarkers.length === 1 && ui.tool === 'select'}
+                {@const mPts = getMarkerPoints(m)}
+                {#if mPts}
+                  {#each mPts as p1, i}
+                    {@const p2 = mPts[(i + 1) % mPts.length]!}
+                    {@const isHoriz = p1[1] === p2[1]}
+                    {@const midX = ((p1[0] + p2[0]) / 2) * aspect}
+                    {@const midY = (p1[1] + p2[1]) / 2}
+                    {@const hw = (isHoriz ? 16 : 6) / ui.view.scale}
+                    {@const hh = (isHoriz ? 6 : 16) / ui.view.scale}
+                    <rect
+                      x={midX - hw / 2}
+                      y={midY - hh / 2}
+                      width={hw}
+                      height={hh}
+                      rx={3 / ui.view.scale}
+                      ry={3 / ui.view.scale}
+                      class="edge-resize-handle marker-handle"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  {/each}
+                {/if}
+              {/if}
             </g>
           {:else if m.shape.type === 'poly'}
             {@const center = shapeCenter(m.shape)}
@@ -1135,6 +1327,26 @@
               >
                 {m.name}
               </text>
+              {#if isMarkerSelected && ui.selectedMarkers.length === 1 && ui.tool === 'select'}
+                {#each m.shape.points as p1, i}
+                  {@const p2 = m.shape.points[(i + 1) % m.shape.points.length]!}
+                  {@const isHoriz = p1[1] === p2[1]}
+                  {@const midX = ((p1[0] + p2[0]) / 2) * aspect}
+                  {@const midY = (p1[1] + p2[1]) / 2}
+                  {@const hw = (isHoriz ? 16 : 6) / ui.view.scale}
+                  {@const hh = (isHoriz ? 6 : 16) / ui.view.scale}
+                  <rect
+                    x={midX - hw / 2}
+                    y={midY - hh / 2}
+                    width={hw}
+                    height={hh}
+                    rx={3 / ui.view.scale}
+                    ry={3 / ui.view.scale}
+                    class="edge-resize-handle marker-handle"
+                    vector-effect="non-scaling-stroke"
+                  />
+                {/each}
+              {/if}
             </g>
           {/if}
         {/each}
@@ -1465,5 +1677,18 @@
     stroke-width: 2.5px;
     stroke-dasharray: 6 3;
     pointer-events: none;
+  }
+
+  .edge-resize-handle {
+    fill: var(--accent);
+    stroke: #ffffff;
+    stroke-width: 1.5px;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+    transition: transform var(--duration-fast);
+  }
+
+  .edge-resize-handle.marker-handle {
+    fill: #2563eb;
   }
 </style>
