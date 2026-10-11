@@ -21,6 +21,7 @@
   import { displayName, formatPlacePath } from '../../core/places';
   import { computeRegions } from '../../geometry/regions';
   import { isRectangle, boundingRect } from '../../geometry/polygon';
+  import { describePartitionLine, type PartitionLineInfo } from '../../editor/view';
   import type { Id, Axis, Rotation } from '../../core/types';
 
   const app = getApp();
@@ -284,9 +285,24 @@
   }
 
   // 選んだ線
+  const selectedLineInfo = $derived.by((): PartitionLineInfo | null => {
+    if (!doc || !ui.selectedLine) return null;
+    return describePartitionLine(doc, ui.selectedLine.node, ui.selectedLine.lineIndex);
+  });
+
   function handleDeleteSelectedLine() {
     if (!doc || !ui.selectedLine) return;
     const { node, lineIndex } = ui.selectedLine;
+    const info = selectedLineInfo;
+
+    let message = '選択した仕切りの線を削除します。';
+    if (info) {
+      if (info.allRemovedAreas.length > 2) {
+        message = `「${info.childNames[0]}」と「${info.childNames[1]}」を分ける線を削除します。\n配下の ${info.allRemovedAreas.length} エリア（${info.allRemovedAreaNames.join('、')}）がすべて「${info.mergedIntoName}」に統合されます。`;
+      } else {
+        message = `「${info.childNames[0]}」と「${info.childNames[1]}」を分けている仕切りを削除します。\n両方のエリアが統合され、「${info.mergedIntoName}」になります。`;
+      }
+    }
 
     if ($app.editor?.kind === 'kuukan') {
       const plan = planDeleteLine(doc, node, lineIndex);
@@ -297,7 +313,7 @@
       });
       app.confirm({
         title: '仕切りの線の削除',
-        message: '選択した仕切りの線を削除します。',
+        message,
         details,
         confirmLabel: '削除する',
         danger: true,
@@ -309,10 +325,19 @@
         },
       });
     } else {
-      applyToEditor(app, $app, (d, ctx) =>
-        deleteLine(d, node, lineIndex, ctx),
-      );
-      ui.selectedLine = null;
+      app.confirm({
+        title: '仕切りの線の削除',
+        message,
+        details: [],
+        confirmLabel: '削除する',
+        danger: true,
+        onConfirm: () => {
+          applyToEditor(app, $app, (d, ctx) =>
+            deleteLine(d, node, lineIndex, ctx),
+          );
+          ui.selectedLine = null;
+        },
+      });
     }
   }
 
@@ -546,7 +571,28 @@
   {:else if ui.selectedLine}
     <section class="panel-section active-selection" use:attention={`${ui.selectedLine?.node}:${ui.selectedLine?.lineIndex}`}>
       <div class="section-title">選んだ仕切りの線</div>
-      <p class="muted small desc-text">仕切りの線が選択されています。</p>
+      {#if selectedLineInfo}
+        <div class="selected-line-details">
+          <div class="selected-line-summary">
+            <strong>{selectedLineInfo.summary}</strong>
+          </div>
+          <p class="muted small desc-text">親エリア: {selectedLineInfo.parentName}</p>
+          {#if selectedLineInfo.allRemovedAreas.length > 2}
+            <div class="delete-warning-box">
+              <span class="warning-badge">注意</span>
+              <p class="small">
+                この線を消すと、配下の {selectedLineInfo.allRemovedAreas.length} エリア（{selectedLineInfo.allRemovedAreaNames.join('、')}）がすべて「{selectedLineInfo.mergedIntoName}」に統合されます。
+              </p>
+            </div>
+          {:else}
+            <p class="muted small desc-text">
+              この線を消すと、「{selectedLineInfo.childNames[0]}」と「{selectedLineInfo.childNames[1]}」が統合され、「{selectedLineInfo.mergedIntoName}」になります。
+            </p>
+          {/if}
+        </div>
+      {:else}
+        <p class="muted small desc-text">仕切りの線が選択されています。</p>
+      {/if}
       <div class="action-row">
         <button
           type="button"
@@ -1039,5 +1085,42 @@
     min-height: 28px;
     padding: 0 var(--space-2);
     font-size: var(--font-size-small);
+  }
+
+  .selected-line-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+
+  .selected-line-summary {
+    font-size: var(--font-size-normal);
+    color: var(--text);
+  }
+
+  .delete-warning-box {
+    background: rgba(220, 53, 69, 0.08);
+    border: 1px solid rgba(220, 53, 69, 0.25);
+    border-radius: var(--radius-small);
+    padding: var(--space-2);
+    margin-top: var(--space-1);
+    color: var(--text);
+  }
+
+  .delete-warning-box p {
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .warning-badge {
+    display: inline-block;
+    background: #dc3545;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-bottom: 4px;
   }
 </style>

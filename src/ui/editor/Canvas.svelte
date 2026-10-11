@@ -20,6 +20,8 @@
     lineSegments,
     hitLine,
     hitMarker,
+    describePartitionLine,
+    type PartitionLineInfo,
   } from '../../editor/view';
   import { moveLine, splitAt, deleteLine, planDeleteLine } from '../../core/ops/areas';
   import { addMarker, moveMarkers, updateMarker, deleteMarkers } from '../../core/ops/markers';
@@ -37,6 +39,11 @@
 
   const doc = $derived(editorDoc($app));
   const kuukanId = $derived(editorKuukan($app));
+
+  const selectedLineInfo = $derived.by((): PartitionLineInfo | null => {
+    if (!doc || !ui.selectedLine) return null;
+    return describePartitionLine(doc, ui.selectedLine.node, ui.selectedLine.lineIndex);
+  });
 
   const kuukanDrawing = $derived.by(() => {
     if (!doc || !kuukanId) return null;
@@ -270,6 +277,17 @@
         if (ui.selectedLine && doc) {
           e.preventDefault();
           const { node, lineIndex } = ui.selectedLine;
+          const info = selectedLineInfo;
+
+          let message = '選択した仕切りの線を削除します。';
+          if (info) {
+            if (info.allRemovedAreas.length > 2) {
+              message = `「${info.childNames[0]}」と「${info.childNames[1]}」を分ける線を削除します。\n配下の ${info.allRemovedAreas.length} エリア（${info.allRemovedAreaNames.join('、')}）がすべて「${info.mergedIntoName}」に統合されます。`;
+            } else {
+              message = `「${info.childNames[0]}」と「${info.childNames[1]}」を分けている仕切りを削除します。\n両方のエリアが統合され、「${info.mergedIntoName}」になります。`;
+            }
+          }
+
           if ($app.editor?.kind === 'kuukan') {
             const plan = planDeleteLine(doc, node, lineIndex);
             const details = plan.relocations.map((r) => {
@@ -279,7 +297,7 @@
             });
             app.confirm({
               title: '仕切りの線の削除',
-              message: '選択した仕切りの線を削除します。',
+              message,
               details,
               confirmLabel: '削除する',
               danger: true,
@@ -291,10 +309,19 @@
               },
             });
           } else {
-            applyToEditor(app, $app, (d, ctx) =>
-              deleteLine(d, node, lineIndex, ctx),
-            );
-            ui.selectedLine = null;
+            app.confirm({
+              title: '仕切りの線の削除',
+              message,
+              details: [],
+              confirmLabel: '削除する',
+              danger: true,
+              onConfirm: () => {
+                applyToEditor(app, $app, (d, ctx) =>
+                  deleteLine(d, node, lineIndex, ctx),
+                );
+                ui.selectedLine = null;
+              },
+            });
           }
           return;
         }
@@ -1188,6 +1215,20 @@
               vector-effect="non-scaling-stroke"
             />
           {/if}
+
+          <!-- 選択された仕切り線で分断されているエリアの強調オーバーレイ -->
+          {#if selectedLineInfo && regions}
+            {#each selectedLineInfo.allRemovedAreas as aId}
+              {@const aPoly = regions.get(aId)}
+              {#if aPoly}
+                <polygon
+                  points={aPoly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                  class="line-affected-area"
+                  vector-effect="non-scaling-stroke"
+                />
+              {/if}
+            {/each}
+          {/if}
         {/if}
       </g>
 
@@ -1223,6 +1264,16 @@
         {#each displayedLineSegments as seg}
           {@const isLineSelected =
             ui.selectedLine?.node === seg.node && ui.selectedLine?.lineIndex === seg.lineIndex}
+          {#if isLineSelected}
+            <line
+              x1={seg.from[0] * aspect}
+              y1={seg.from[1]}
+              x2={seg.to[0] * aspect}
+              y2={seg.to[1]}
+              class="partition-line-glow"
+              vector-effect="non-scaling-stroke"
+            />
+          {/if}
           <line
             x1={seg.from[0] * aspect}
             y1={seg.from[1]}
@@ -1568,6 +1619,15 @@
     pointer-events: none;
   }
 
+  .line-affected-area {
+    fill: var(--accent);
+    fill-opacity: 0.12;
+    stroke: var(--accent);
+    stroke-width: 1.5px;
+    stroke-dasharray: 6 3;
+    pointer-events: none;
+  }
+
   /* 外形 */
   .kuukan-outline {
     fill: none;
@@ -1586,6 +1646,14 @@
   .partition-line.selected {
     stroke: var(--accent);
     stroke-width: 3.5px;
+  }
+
+  .partition-line-glow {
+    stroke: var(--accent);
+    stroke-width: 9px;
+    stroke-opacity: 0.35;
+    stroke-linecap: round;
+    pointer-events: none;
   }
 
   /* マーカー */

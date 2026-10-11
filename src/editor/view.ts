@@ -201,7 +201,7 @@ function segmentLength(seg: { from: Point; to: Point }): number {
 
 /**
  * 指定した点 p に tolerance 以内で最も近い仕切りの線分を判定する。
- * 距離が同等（または微小差内）の場合は、より深い階層（子の線）および短い線分を優先する。
+ * 許容誤差の範囲内において、より深い階層（子の線）および局所的な線分（短い線）を優先してスコアリングする。
  */
 export function hitLine(
   regions: Map<Id, Polygon>,
@@ -211,10 +211,12 @@ export function hitLine(
   tree?: AreaTree,
 ): { node: Id; lineIndex: number } | null {
   const segments = lineSegments(regions, partitions);
-  let bestResult: { node: Id; lineIndex: number; dist: number; depth: number; length: number } | null = null;
-
-  // 許容誤差の 1/4 または 20 単位以内を「実質的に同等の近接」とみなす
-  const DIST_EPSILON = Math.min(tolerance * 0.25, 20);
+  let bestResult: {
+    node: Id;
+    lineIndex: number;
+    score: number;
+    dist: number;
+  } | null = null;
 
   for (const seg of segments) {
     const dist = distToSegment(p, seg);
@@ -223,30 +225,85 @@ export function hitLine(
     const depth = tree ? getNodeDepth(tree, seg.node) : 0;
     const length = segmentLength(seg);
 
-    if (!bestResult) {
-      bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
-      continue;
-    }
+    // 許容誤差範囲内において、より深い階層（子の線）と短い線分を優先するスコアリング
+    // 深さ1あたり tolerance の 25% の距離アドバンテージを付与
+    const lengthPenalty = (length / 10000) * (tolerance * 0.05);
+    const depthAdvantage = depth * (tolerance * 0.25);
+    const score = dist - depthAdvantage + lengthPenalty;
 
-    // 1. 明らかに距離が近い場合は更新
-    if (dist < bestResult.dist - DIST_EPSILON) {
-      bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
-    } else if (Math.abs(dist - bestResult.dist) <= DIST_EPSILON) {
-      // 2. 距離が同等（交点・T字路・端点など）の場合、より深い階層（子の線）を優先
-      if (depth > bestResult.depth) {
-        bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
-      } else if (depth === bestResult.depth) {
-        // 深さも同じなら、より短い線分（局所的な線）を優先
-        if (length < bestResult.length - 1e-4) {
-          bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
-        } else if (Math.abs(length - bestResult.length) <= 1e-4 && dist < bestResult.dist) {
-          bestResult = { node: seg.node, lineIndex: seg.lineIndex, dist, depth, length };
-        }
-      }
+    if (!bestResult || score < bestResult.score) {
+      bestResult = { node: seg.node, lineIndex: seg.lineIndex, score, dist };
     }
   }
 
   return bestResult ? { node: bestResult.node, lineIndex: bestResult.lineIndex } : null;
+}
+
+export interface PartitionLineInfo {
+  childAreas: [Id, Id];
+  childNames: [string, string];
+  parentArea: Id;
+  parentName: string;
+  summary: string;
+  mergedIntoName: string;
+  allRemovedAreas: Id[];
+  allRemovedAreaNames: string[];
+}
+
+/**
+ * 選択された仕切り線について、両隣の子エリア名、親エリア名、統合影響を具体的に算出する。
+ */
+export function describePartitionLine(
+  doc: { membership: { kuukans: any[]; areas: any[]; items: any[] }; drawing: { partitions: Partition[] } },
+  node: Id,
+  lineIndex: number,
+): PartitionLineInfo | null {
+  const partition = doc.drawing.partitions.find((p) => p.area === node);
+  if (!partition || lineIndex < 0 || lineIndex >= partition.at.length) {
+    return null;
+  }
+
+  const childA = partition.children[lineIndex];
+  const childB = partition.children[lineIndex + 1];
+  if (!childA || !childB) return null;
+
+  const findAreaName = (id: Id): string => {
+    const area = doc.membership.areas.find((a) => a.id === id);
+    if (area) return area.name;
+    const kuukan = doc.membership.kuukans.find((k) => k.id === id);
+    if (kuukan) return kuukan.name ?? kuukan.areaLabel ?? 'クウカン';
+    return 'エリア';
+  };
+
+  const childNameA = findAreaName(childA);
+  const childNameB = findAreaName(childB);
+  const parentName = findAreaName(node);
+
+  // 子の subtree 全体（影響を受けるエリア）を再帰探索
+  function getSubtree(areaId: Id): Id[] {
+    const res: Id[] = [areaId];
+    const childPart = doc.drawing.partitions.find((p) => p.area === areaId);
+    if (childPart) {
+      for (const cid of childPart.children) {
+        res.push(...getSubtree(cid));
+      }
+    }
+    return res;
+  }
+
+  const allRemovedAreas = [...getSubtree(childA), ...getSubtree(childB)];
+  const allRemovedAreaNames = allRemovedAreas.map(findAreaName);
+
+  return {
+    childAreas: [childA, childB],
+    childNames: [childNameA, childNameB],
+    parentArea: node,
+    parentName,
+    summary: `「${childNameA}」と「${childNameB}」を分ける線`,
+    mergedIntoName: parentName,
+    allRemovedAreas,
+    allRemovedAreaNames,
+  };
 }
 
 /** 点とマーカーの最短距離を計算する。 */
