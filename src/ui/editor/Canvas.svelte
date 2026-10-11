@@ -101,6 +101,22 @@
     return doc.drawing.markers.filter((m) => m.kuukan === kuukanId);
   });
 
+  // ゴースト表示するモノ（配置済みのモノ）
+  const ghostItems = $derived.by(() => {
+    if (!doc || !kuukanId) return [];
+    const areaIds = new Set(doc.membership.areas.filter((a) => a.kuukan === kuukanId).map((a) => a.id));
+    const validPlaces = new Set<Id>([kuukanId, ...areaIds]);
+    const kuukanItems = doc.membership.items.filter((i) => validPlaces.has(i.place));
+    const drawingMap = new Map(doc.drawing.items.map((d) => [d.item, d]));
+
+    return kuukanItems
+      .filter((i) => drawingMap.has(i.id))
+      .map((i) => ({
+        item: i,
+        drawing: drawingMap.get(i.id)!,
+      }));
+  });
+
   // 仕切り線一覧
   const displayedLineSegments = $derived.by(() => {
     if (!regions || !kuukanGeometry) return [];
@@ -1259,6 +1275,78 @@
         {/if}
       </g>
 
+      <!-- 3.5. モノのゴースト描画（配置済みモノの参考表示） -->
+      {#if ghostItems.length > 0}
+        <g class="ghost-items-layer" aria-hidden="true">
+          {#each ghostItems as { item, drawing }}
+            {#if drawing.shape.type === 'point'}
+              {@const [gx, gy] = drawing.shape.at}
+              <circle
+                cx={gx * aspect}
+                cy={gy}
+                r={6 / ui.view.scale}
+                class="ghost-item-point"
+                vector-effect="non-scaling-stroke"
+              />
+              <text
+                x={gx * aspect}
+                y={gy + 13 / ui.view.scale}
+                class="ghost-item-label"
+                text-anchor="middle"
+                dominant-baseline="central"
+              >
+                {item.name}
+              </text>
+            {:else if drawing.shape.type === 'rect'}
+              {@const { x, y, w, h } = drawing.shape}
+              {@const cx = (x + w / 2) * aspect}
+              {@const cy = y + h / 2}
+              {@const rotDeg = (drawing.rotation ?? 0) * 45}
+              <g transform={rotDeg !== 0 ? `rotate(${rotDeg}, ${cx}, ${cy})` : undefined}>
+                <rect
+                  x={x * aspect}
+                  y={y}
+                  width={w * aspect}
+                  height={h}
+                  class="ghost-item-rect"
+                  vector-effect="non-scaling-stroke"
+                />
+                <text
+                  x={cx}
+                  y={cy}
+                  class="ghost-item-label"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                >
+                  {item.name}
+                </text>
+              </g>
+            {:else if drawing.shape.type === 'poly'}
+              {@const center = shapeCenter(drawing.shape)}
+              {@const cx = center[0] * aspect}
+              {@const cy = center[1]}
+              {@const rotDeg = (drawing.rotation ?? 0) * 45}
+              <g transform={rotDeg !== 0 ? `rotate(${rotDeg}, ${cx}, ${cy})` : undefined}>
+                <polygon
+                  points={drawing.shape.points.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                  class="ghost-item-poly"
+                  vector-effect="non-scaling-stroke"
+                />
+                <text
+                  x={cx}
+                  y={cy}
+                  class="ghost-item-label"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                >
+                  {item.name}
+                </text>
+              </g>
+            {/if}
+          {/each}
+        </g>
+      {/if}
+
       <!-- 4. 仕切りの線 -->
       <g class="partitions-layer">
         {#each displayedLineSegments as seg}
@@ -1758,5 +1846,42 @@
 
   .edge-resize-handle.marker-handle {
     fill: #2563eb;
+  }
+
+  /* ゴースト表示（配置済みモノの参考表示） */
+  .ghost-items-layer {
+    pointer-events: none;
+    user-select: none;
+  }
+  .ghost-item-rect {
+    fill: var(--surface);
+    fill-opacity: 0.45;
+    stroke: var(--text-muted);
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 3;
+    opacity: 0.7;
+  }
+  .ghost-item-poly {
+    fill: var(--surface);
+    fill-opacity: 0.45;
+    stroke: var(--text-muted);
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 3;
+    opacity: 0.7;
+  }
+  .ghost-item-point {
+    fill: var(--text-muted);
+    stroke: var(--surface);
+    stroke-width: 1.5px;
+    opacity: 0.7;
+  }
+  .ghost-item-label {
+    font-family: var(--font);
+    font-size: calc(11px * var(--u, 1));
+    fill: var(--text-muted);
+    font-weight: 500;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.85;
   }
 </style>

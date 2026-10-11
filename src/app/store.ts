@@ -32,6 +32,7 @@ import {
   setDraftOutline,
 } from '../editor/draft';
 import { type ConfirmMode, planConfirm, confirmDraft as confirmDraftOp } from '../editor/confirm';
+import { autoAssignItemPlaces } from '../editor/autoAssign';
 
 export type Screen = 'start' | 'kuukans' | 'view' | 'search' | 'editor' | 'manage' | 'settings';
 
@@ -952,6 +953,19 @@ export class AppStore {
 
   /** クウカン編集から、開いた元の画面へ戻る（下書きなら捨てるか確認する）。 */
   leaveEditor(): void {
+    const ed = this._state.editor;
+    if (ed?.kind === 'kuukan' && this._state.doc) {
+      const res = autoAssignItemPlaces(this._state.doc, ed.kuukan);
+      if (res.relocations.length > 0) {
+        this.apply(() => ({
+          doc: res.doc,
+          moved: res.relocations.flatMap((r) => r.items),
+          created: [],
+        }));
+        const totalMoved = res.relocations.reduce((sum, r) => sum + r.items.length, 0);
+        this.showToast('info', `${totalMoved}件のモノの所属エリアを間取りに合わせて更新しました`);
+      }
+    }
     this.setScreen(this.editorReturnScreen);
   }
 
