@@ -83,6 +83,10 @@
     app.setQuick('');
   }
 
+  function handleSearchFromView(): void {
+    app.searchFromView();
+  }
+
   function handleCloseDetail(): void {
     app.showDetail(null);
     ui.selectedDrawing = null;

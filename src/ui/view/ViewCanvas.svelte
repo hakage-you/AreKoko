@@ -33,6 +33,15 @@
     quickSearch,
     type QuickResult,
   } from '../../view/model';
+  import {
+    computeAttachRect,
+    getAreaAtPoint,
+    computeHoverGuide,
+  } from '../../view/dragPreview';
+  import {
+    computeViewHint,
+    type DragPhase,
+  } from '../../view/viewHints';
 
   const app = getApp();
   const ui = getViewUi();
@@ -495,6 +504,8 @@
   let previewRectBounds = $state<{ x: number; y: number; w: number; h: number } | null>(null);
   let previewDrawingDelta = $state<{ dx: number; dy: number } | null>(null);
   let previewReshapePoints = $state<Point[] | null>(null);
+  let previewTargetAreaName = $state<string | null>(null);
+  let hoverGuidePoint = $state<Point | null>(null);
 
   // タッチ操作（ピンチ）追跡
   const touchPointers = new Map<number, { x: number; y: number }>();
@@ -607,7 +618,17 @@
       return;
     }
 
-    if (!pointerStartClient) return;
+    if (!pointerStartClient) {
+      if (isPlacing && ui.attachTarget !== null && kuukanDrawing) {
+        const pRatio = clientToRatio(e.clientX, e.clientY);
+        hoverGuidePoint = computeHoverGuide(pRatio, stepX, stepY);
+      } else if (hoverGuidePoint !== null) {
+        hoverGuidePoint = null;
+      }
+      return;
+    }
+
+    hoverGuidePoint = null;
 
     if (!hasMoved) {
       const dist = Math.hypot(e.clientX - pointerStartClient[0], e.clientY - pointerStartClient[1]);
@@ -635,13 +656,15 @@
     }
 
     if (activeDrag.kind === 'attachRect') {
-      const p1 = snapPoint(pRatio);
-      const p0 = activeDrag.startP;
-      const x = Math.min(p0[0], p1[0]);
-      const y = Math.min(p0[1], p1[1]);
-      const w = Math.abs(p1[0] - p0[0]);
-      const h = Math.abs(p1[1] - p0[1]);
-      previewRectBounds = { x, y, w, h };
+      previewRectBounds = computeAttachRect(activeDrag.startP, pRatio, stepX, stepY);
+      if (regions) {
+        const centerP: Point = [
+          previewRectBounds.x + previewRectBounds.w / 2,
+          previewRectBounds.y + previewRectBounds.h / 2,
+        ];
+        const areaNameMap = new Map(leafNodes.map((id) => [id, areaDisplayName(id)]));
+        previewTargetAreaName = getAreaAtPoint(centerP, regions, leafNodes, areaNameMap);
+      }
       return;
     }
 
@@ -703,6 +726,7 @@
     previewRectBounds = null;
     previewDrawingDelta = null;
     previewReshapePoints = null;
+    previewTargetAreaName = null;
 
     if (!kuukanDrawing || !kuukanId || !doc) return;
 
@@ -968,31 +992,32 @@
     return doc.membership.items.find((it) => it.id === id)?.name ?? '';
   }
 
-  // 案内の帯：何をする所か（what）と、どう使うか（how）
-  const hint = $derived.by((): { what: string; how: string } => {
-    if (!isPlacing) {
-      return {
-        what: 'エリアを押すと、そのエリアのモノがリストに並びます',
-        how: 'もう一度押すと元に戻ります。収納を押すと「開く」が出ます。間取り図にモノのマークを付けるには、上の「モノを配置」へ。',
-      };
-    }
-    if (ui.attachTarget !== null) {
-      return ui.attachTool === 'point'
-        ? { what: `「${itemNameOf(ui.attachTarget)}」を点で配置します`, how: '置きたい所を押してください。' }
-        : { what: `「${itemNameOf(ui.attachTarget)}」を四角で配置します`, how: '図の上をドラッグして範囲を描いてください。' };
-    }
-    if (ui.selectedDrawing !== null) {
-      const name = itemNameOf(ui.selectedDrawing);
-      return {
-        what: `「${name}」の配置を編集中`,
-        how: '中央をドラッグして移動、辺をドラッグして大きさを変えられます。置き場の外に出すと「ずれ」が付きます。',
-      };
-    }
-    return {
-      what: 'モノの配置：間取りや棚の上にモノを配置・移動します',
-      how: '右のリストで「配置する」を押すか、図の上のマークを押して選んでください。終わったら右上の「配置を終了」を押します。',
-    };
+  // ドラッグ操作の現在のフェーズ
+  const currentDragPhase = $derived.by((): DragPhase => {
+    if (!activeDrag || !hasMoved) return 'idle';
+    if (activeDrag.kind === 'attachRect') return 'drawing_rect';
+    if (activeDrag.kind === 'moveDrawing') return 'moving_item';
+    if (activeDrag.kind === 'drawingEdge') return 'resizing';
+    return 'idle';
   });
+
+  const currentTargetName = $derived.by(() => {
+    if (ui.attachTarget !== null) return itemNameOf(ui.attachTarget);
+    if (ui.selectedDrawing !== null) return itemNameOf(ui.selectedDrawing);
+    return '';
+  });
+
+  // 案内の帯：何をする所か（what）と、どう使うか（how）
+  const hint = $derived(
+    computeViewHint({
+      isPlacing,
+      attachTarget: ui.attachTarget,
+      attachTool: ui.attachTool,
+      selectedDrawing: ui.selectedDrawing,
+      targetName: currentTargetName,
+      dragPhase: currentDragPhase,
+    })
+  );
 </script>
 
 <div class="view-canvas-container" bind:this={containerEl}>
@@ -1001,7 +1026,12 @@
     <div class="view-toolbar" role="toolbar" aria-label="配置モードの道具">
       {#if ui.attachTarget !== null}
         <div class="tool-group">
-          <span class="group-title">配置するモノ：{itemNameOf(ui.attachTarget)}</span>
+          <div class="group-header">
+            <span class="group-title">配置するモノ：{itemNameOf(ui.attachTarget)}</span>
+            {#if hint.actionText}
+              <span class="tool-action-hint muted small">（{hint.actionText}）</span>
+            {/if}
+          </div>
           <div class="group-buttons">
             <button type="button" class="tool-btn" class:active={ui.attachTool === 'point'} aria-pressed={ui.attachTool === 'point'} title="図を押した位置に、点で配置します" onclick={() => { ui.attachTool = 'point'; }}>点で配置</button>
             <button type="button" class="tool-btn" class:active={ui.attachTool === 'rect'} aria-pressed={ui.attachTool === 'rect'} title="図の上をドラッグして、四角で配置します" onclick={() => { ui.attachTool = 'rect'; }}>四角で配置</button>
@@ -1035,14 +1065,32 @@
     </div>
   {/if}
 
-  <!-- 案内の帯（1行表示。how は title に入れ、右端に「？」ボタン） -->
+  <!-- 案内の帯（PCは what + how を1行表示、スマホは shortWhat + shortHow をコンパクト表示） -->
   <div
     class="view-message-bar"
     class:has-error={ui.message !== null}
     aria-live="polite"
     title={ui.message ?? (hint.how ? `${hint.what} — ${hint.how}` : hint.what)}
   >
-    <span class="hint-what">{ui.message ?? hint.what}</span>
+    <div class="hint-content">
+      {#if ui.message !== null}
+        <span class="hint-what">{ui.message}</span>
+      {:else}
+        <div class="hint-desktop">
+          <span class="hint-what">{hint.what}</span>
+          {#if hint.how}
+            <span class="hint-sep">—</span>
+            <span class="hint-how">{hint.how}</span>
+          {/if}
+        </div>
+        <div class="hint-mobile">
+          {#if hint.shortWhat}
+            <span class="hint-mobile-badge">{hint.shortWhat}</span>
+          {/if}
+          <span class="hint-mobile-how">{hint.shortHow}</span>
+        </div>
+      {/if}
+    </div>
     <button
       type="button"
       class="hint-help-btn"
@@ -1093,6 +1141,7 @@
         onpointermove={handlePointerMove}
         onpointerup={handlePointerUp}
         onpointercancel={handlePointerCancel}
+        onpointerleave={() => { hoverGuidePoint = null; }}
       >
 
         <!-- 1. エリアの領域 -->
@@ -1329,6 +1378,7 @@
               class:quick-direct={isDirect}
               class:quick-storage={isQuickStorage}
               class:dimmed={isItemDimmed}
+              class:is-moving={activeDrag?.kind === 'moveDrawing' && activeDrag.id === it.id}
               transform={rotDeg !== 0 ? `rotate(${rotDeg}, ${cxDisp}, ${cy})` : undefined}
             >
               {#if d.shape.type === 'point'}
@@ -1526,8 +1576,49 @@
           {/each}
         </g>
 
-        <!-- 7. プレビュー層（ドラッグ操作中） -->
+        <!-- 7. プレビュー層（ホバー・ドラッグ操作中） -->
         <g class="preview-layer">
+          <!-- ホバーガイド（ドラッグ開始前） -->
+          {#if isPlacing && ui.attachTarget !== null && !activeDrag && hoverGuidePoint}
+            {@const hx = hoverGuidePoint[0] * aspect}
+            {@const hy = hoverGuidePoint[1]}
+            {#if ui.attachTool === 'point'}
+              <circle
+                cx={hx}
+                cy={hy}
+                r={8 / ui.view.scale}
+                class="hover-point-ghost"
+                vector-effect="non-scaling-stroke"
+              />
+            {:else if ui.attachTool === 'rect'}
+              <g class="hover-rect-target">
+                <circle
+                  cx={hx}
+                  cy={hy}
+                  r={4 / ui.view.scale}
+                  class="hover-target-dot"
+                  vector-effect="non-scaling-stroke"
+                />
+                <line
+                  x1={hx - 12 / ui.view.scale}
+                  y1={hy}
+                  x2={hx + 12 / ui.view.scale}
+                  y2={hy}
+                  class="hover-target-line"
+                  vector-effect="non-scaling-stroke"
+                />
+                <line
+                  x1={hx}
+                  y1={hy - 12 / ui.view.scale}
+                  x2={hx}
+                  y2={hy + 12 / ui.view.scale}
+                  class="hover-target-line"
+                  vector-effect="non-scaling-stroke"
+                />
+              </g>
+            {/if}
+          {/if}
+
           <!-- 長方形の追加プレビュー -->
           {#if previewRectBounds && (previewRectBounds.w > 0 || previewRectBounds.h > 0)}
             <rect
@@ -1538,6 +1629,30 @@
               class="preview-rect"
               vector-effect="non-scaling-stroke"
             />
+            {#if previewTargetAreaName}
+              <g
+                class="preview-area-badge-group"
+                transform="translate({(previewRectBounds.x + previewRectBounds.w / 2) * aspect}, {previewRectBounds.y - 12 / ui.view.scale})"
+              >
+                <rect
+                  x={-40 / ui.view.scale}
+                  y={-10 / ui.view.scale}
+                  width={80 / ui.view.scale}
+                  height={20 / ui.view.scale}
+                  rx={4 / ui.view.scale}
+                  class="preview-area-badge-bg"
+                />
+                <text
+                  x="0"
+                  y="0"
+                  class="preview-area-badge-text"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                >
+                  {previewTargetAreaName}
+                </text>
+              </g>
+            {/if}
           {/if}
 
           <!-- 描画の移動プレビュー -->
@@ -1772,6 +1887,13 @@
     flex-shrink: 0;
   }
 
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
   .group-title {
     font-size: 11px;
     color: var(--text-muted);
@@ -1872,14 +1994,51 @@
     white-space: nowrap;
   }
 
+  .hint-content {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .hint-desktop {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .hint-mobile {
+    display: none;
+  }
+
   .hint-what {
     font-weight: 600;
     color: var(--text);
+    flex-shrink: 0;
+  }
+
+  .hint-sep {
+    color: var(--text-muted);
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+
+  .hint-how {
+    color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex: 1;
-    min-width: 0;
+  }
+
+  .tool-action-hint {
+    margin-left: var(--space-2);
+    font-weight: 500;
+    color: var(--accent);
   }
 
   .hint-help-btn {
@@ -2233,6 +2392,11 @@
     cursor: pointer;
   }
 
+  .item-drawing-group.is-moving {
+    opacity: 0.25;
+    transition: opacity var(--duration-fast);
+  }
+
   /* プレビュー表示 */
   .preview-rect {
     fill: var(--accent-soft);
@@ -2240,6 +2404,42 @@
     stroke: var(--accent);
     stroke-width: 1.5px;
     stroke-dasharray: 4 4;
+    pointer-events: none;
+  }
+
+  .hover-point-ghost {
+    fill: var(--accent);
+    fill-opacity: 0.45;
+    stroke: var(--surface);
+    stroke-width: 2px;
+    pointer-events: none;
+  }
+
+  .hover-target-dot {
+    fill: var(--accent);
+    pointer-events: none;
+  }
+
+  .hover-target-line {
+    stroke: var(--accent);
+    stroke-width: 1px;
+    stroke-dasharray: 2 2;
+    pointer-events: none;
+  }
+
+  .preview-area-badge-bg {
+    fill: var(--surface);
+    stroke: var(--accent);
+    stroke-width: 1px;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.15));
+    pointer-events: none;
+  }
+
+  .preview-area-badge-text {
+    font-family: var(--font);
+    font-size: calc(11px * var(--u, 1));
+    fill: var(--text);
+    font-weight: 600;
     pointer-events: none;
   }
 
@@ -2275,6 +2475,54 @@
   }
 
   @media (max-width: 767.98px) {
+    .hint-desktop {
+      display: none;
+    }
+
+    .hint-mobile {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      width: 100%;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .hint-mobile-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-small);
+      padding: 0 4px;
+      max-width: 90px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .hint-mobile-how {
+      font-size: var(--font-size-small);
+      font-weight: 600;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tool-action-hint {
+      display: none;
+    }
+
+    .selected-drawing-hint {
+      display: none;
+    }
+
     .zoom-float {
       padding: 2px;
       gap: 2px;
