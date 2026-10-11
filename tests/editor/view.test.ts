@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Marker, Partition, Point } from '../../src/core/types';
+import type { Id, Marker, Partition, Point } from '../../src/core/types';
 import type { Polygon } from '../../src/geometry/types';
 import {
   toDisplay,
@@ -221,6 +221,99 @@ describe('view', () => {
 
       const hit = hitLine(regions, partitions, [5100, 3000], 50);
       expect(hit).toBeNull();
+    });
+
+    it('親の仕切り線と子の仕切り線のT字交点では、AreaTree を渡すことでより深い子の仕切り線が優先される', () => {
+      // 根クウカン（10000x10000）を x=5000 で左右（area-1, area-2）に分割
+      // area-1（左側: 0..5000, 0..10000）を y=4000 で上下（area-1-1, area-1-2）に分割
+      const customRegions = new Map<Id, Polygon>([
+        [
+          'kuukan-1',
+          [
+            [0, 0],
+            [10000, 0],
+            [10000, 10000],
+            [0, 10000],
+          ],
+        ],
+        [
+          'area-1',
+          [
+            [0, 0],
+            [5000, 0],
+            [5000, 10000],
+            [0, 10000],
+          ],
+        ],
+      ]);
+
+      const partitions: Partition[] = [
+        {
+          area: 'kuukan-1',
+          axis: 'x',
+          at: [5000],
+          seed: [5000, 2000],
+          children: ['area-1', 'area-2'],
+        },
+        {
+          area: 'area-1',
+          axis: 'y',
+          at: [4000],
+          seed: [2500, 4000],
+          children: ['area-1-1', 'area-1-2'],
+        },
+      ];
+
+      const tree = {
+        root: 'kuukan-1',
+        children: new Map<Id, Id[]>([
+          ['kuukan-1', ['area-1', 'area-2']],
+          ['area-1', ['area-1-1', 'area-1-2']],
+        ]),
+      };
+
+      // T字交点 (5000, 4000)（両方の線までの距離が 0 の点）
+      // 親の線（x=5000）までの距離: 0、子の線（y=4000）までの距離: 0
+      const hit = hitLine(customRegions, partitions, [5000, 4000], 50, tree);
+      expect(hit).toEqual({ node: 'area-1', lineIndex: 0 });
+    });
+
+    it('複数等分されたエリアの中で、特定の一本の仕切り線が正確にヒットする', () => {
+      const customRegions = new Map<Id, Polygon>([
+        [
+          'kuukan-1',
+          [
+            [0, 0],
+            [10000, 0],
+            [10000, 10000],
+            [0, 10000],
+          ],
+        ],
+      ]);
+      const partitions: Partition[] = [
+        {
+          area: 'kuukan-1',
+          axis: 'y',
+          at: [2500, 5000, 7500],
+          children: ['d1', 'd2', 'd3', 'd4'],
+        },
+      ];
+
+      // lineIndex 0 (y=2500) 付近
+      expect(hitLine(customRegions, partitions, [5000, 2510], 50)).toEqual({
+        node: 'kuukan-1',
+        lineIndex: 0,
+      });
+      // lineIndex 1 (y=5000) 付近
+      expect(hitLine(customRegions, partitions, [5000, 4995], 50)).toEqual({
+        node: 'kuukan-1',
+        lineIndex: 1,
+      });
+      // lineIndex 2 (y=7500) 付近
+      expect(hitLine(customRegions, partitions, [5000, 7505], 50)).toEqual({
+        node: 'kuukan-1',
+        lineIndex: 2,
+      });
     });
   });
 

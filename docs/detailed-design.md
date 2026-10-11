@@ -85,6 +85,7 @@ tests/                Vitest のテスト（core/、geometry/、property/）
 | `items[].category` | `null` |
 | `items[].tags` | `[]` |
 | `categories[].parent` | `null` |
+| `categories[].color`、`tags[].color` | 入れない（省略は既定の色。`#rrggbb` でない値は画面で使わない。設計 7.6） |
 | `markers[].name` | `""` |
 | `markers[].rotation`、`drawing.items[].rotation` | `0` |
 | `markers[].notAPlace` | `false` |
@@ -410,8 +411,8 @@ interface Relocation { from: Id; to: Id; items: Id[] }   // from/to は置き場
 | items | `addTagToItems(doc, ids, tag, ctx)` / `removeTagFromItems(doc, ids, tag, ctx)` | |
 | items | `deleteItems(doc, ids, ctx)` | 収納なら、そのクウカンも消え、中身は収納があった置き場へ（統一規則）。消すモノどうしが入れ子でも、順に処理すれば正しくなる |
 | notices | `removeNotice(doc, kind, id, index)` | 修復メモを消す。書き換えはできない |
-| categories | `createCategory`、`renameCategory`、`moveCategory(doc, id, parent)`、`deleteCategory` | `moveCategory` は輪になる親を `OpError`。削除：中のモノと子カテゴリを親へ（親がなければ未分類・いちばん上） |
-| tags | `createTag`、`renameTag`、`deleteTag` | 削除：タグと全部の参照を消す。件数は `getIndexes` で数える |
+| categories | `createCategory`、`renameCategory`、`moveCategory(doc, id, parent)`、`deleteCategory`、`setCategoryColor(doc, id, color)` | `moveCategory` は輪になる親を `OpError`。削除：中のモノと子カテゴリを親へ（親がなければ未分類・いちばん上） |
+| tags | `createTag`、`renameTag`、`deleteTag`、`setTagColor(doc, id, color)` | 削除：タグと全部の参照を消す。件数は `getIndexes` で数える。色：`#rrggbb` だけ受け付け（ほかは `OpError`）、`null` で外す（カテゴリも同じ） |
 | kuukans | `createKuukan(doc, { name, areaLabel? }, ctx)` | どこにも置かれていない、描画なしのクウカン |
 | kuukans | `renameKuukan`、`setAreaLabel` | `renameKuukan` は、どこにも置かれていないクウカンだけ（未設定は不可） |
 | kuukans | `planDeleteKuukan` / `deleteKuukan` | 中身は未設定へ。中の収納は中身ごと移る。エリア・描画・仕切り・マーカーも消す |

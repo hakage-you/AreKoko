@@ -275,14 +275,14 @@ describe('view model', () => {
   });
 
   describe('undrawnCounts', () => {
-    it('描画したモノは数えず、途中のエリアのキーに直接置かれた件数が入る', () => {
+    it('描画したモノは数えず、中を分けたエリアのキーに直接置かれた件数が入る', () => {
       const { doc: sampleDoc, ids } = createSampleHierarchyDoc();
       const doc = deepFreeze(sampleDoc);
 
       const counts = undrawnCounts(doc, ids.shelfKuukan);
 
       // itemDan1Left1 は描画されているので数えない
-      // dan1: itemDan1 (1件, 途中のエリア)
+      // dan1: itemDan1 (1件, 中を分けたエリア)
       // dan1Left: boxItem, itemDan1Left2 (2件)
       // dan1Right: itemDan1Right (1件)
       // dan2: itemDan2 (1件)
@@ -294,7 +294,7 @@ describe('view model', () => {
   });
 
   describe('drawingOffset & offsetText', () => {
-    it('置き場の内側・辺の上・別の葉・外形の外・途中のエリアの中心判定', () => {
+    it('置き場の内側・辺の上・別の葉・外形の外・中を分けたエリアの中心判定', () => {
       const { doc: sampleDoc, ids } = createSampleHierarchyDoc();
       // shelfKuukan:
       // dan1: y: 0〜5000
@@ -363,8 +363,8 @@ describe('view model', () => {
         '所属：段1左（描画はクウカンの外にあります）',
       );
 
-      // 5. 途中のエリアに置いたモノの中心が子孫の葉 → ok
-      // itemDan1 は dan1（途中のエリア、y: 0〜5000）に所属。中心が (2500, 2500)（dan1Left の中）
+      // 5. 中を分けたエリアに置いたモノの中心が子孫の葉 → ok
+      // itemDan1 は dan1（中を分けたエリア、y: 0〜5000）に所属。中心が (2500, 2500)（dan1Left の中）
       const docIntermediate: ArekokoDocument = {
         ...sampleDoc,
         drawing: {

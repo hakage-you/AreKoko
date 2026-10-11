@@ -54,7 +54,7 @@ const geometryOps = fc.array(
   { minLength: 10, maxLength: 60, size: 'max' },
 );
 
-/** 葉のエリアの面積の合計が、外形の面積に等しい（領域がすき間なく分かれている）。 */
+/** 分けていないエリアの面積の合計が、外形の面積に等しい（領域がすき間なく分かれている）。 */
 function leafAreasCoverOutline(doc: ArekokoDocument): void {
   for (const kd of doc.drawing.kuukans) {
     const res = validateKuukanDrawing(doc, kd.kuukan);

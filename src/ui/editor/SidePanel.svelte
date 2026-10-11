@@ -19,6 +19,7 @@
   import { displayName } from '../../core/places';
   import { computeRegions } from '../../geometry/regions';
   import { isRectangle, boundingRect } from '../../geometry/polygon';
+  import { describePartitionLine, describeLineRemoval, type PartitionLineInfo } from '../../editor/view';
   import type { Id, Axis, Rotation } from '../../core/types';
 
   const app = getApp();
@@ -266,12 +267,20 @@
   }
 
   // 選んだ線
+  const selectedLineInfo = $derived.by((): PartitionLineInfo | null => {
+    if (!doc || !ui.selectedLine) return null;
+    return describePartitionLine(doc, ui.selectedLine.node, ui.selectedLine.lineIndex, kuukanDisplayName);
+  });
+
   function handleDeleteSelectedLine() {
     if (!doc || !ui.selectedLine) return;
     const { node, lineIndex } = ui.selectedLine;
+    // どの線を消し、消すと何になるかを確認の文にする（横の欄と同じ文。確認を出すかどうかと移るモノの影響は store が決める）
+    const info = selectedLineInfo;
+    const message = info ? describeLineRemoval(info) : undefined;
     app.requestDeleteLine(node, lineIndex, 'line', () => {
       ui.selectedLine = null;
-    });
+    }, message);
   }
 
   // 選んだマーカー
@@ -453,20 +462,8 @@
       {#if selectedSingleMarker.shape.type === 'rect' || selectedSingleMarker.shape.type === 'poly'}
         <div class="field-block">
           <div class="group-label">マーカーの形</div>
+          <p class="muted small hint">辺のツマミを直接ドラッグして伸縮できます。</p>
           <div class="btn-group">
-            <!-- 押すと入り、もう一度押すと「選ぶ」に戻る（戻るためのボタンは置かない） -->
-            <button
-              type="button"
-              class="small ghost"
-              class:active={ui.tool === 'markerEdge'}
-              aria-pressed={ui.tool === 'markerEdge'}
-              title="マーカーの辺をドラッグして動かします。もう一度押すと終わります"
-              onclick={() => {
-                ui.tool = ui.tool === 'markerEdge' ? 'select' : 'markerEdge';
-              }}
-            >
-              辺を動かす
-            </button>
             <button
               type="button"
               class="small ghost"
@@ -516,7 +513,24 @@
   {:else if ui.selectedLine}
     <section class="panel-section active-selection" use:attention={`${ui.selectedLine?.node}:${ui.selectedLine?.lineIndex}`}>
       <div class="section-title">選んだ仕切りの線</div>
-      <p class="muted small desc-text">仕切りの線が選択されています。</p>
+      {#if selectedLineInfo}
+        <div class="selected-line-details">
+          <div class="selected-line-summary">
+            <strong>{selectedLineInfo.summary}</strong>
+          </div>
+          <p class="muted small desc-text">分けているエリア: {selectedLineInfo.parentName}</p>
+          {#if selectedLineInfo.innerAreaNames.length > 0}
+            <div class="delete-warning-box">
+              <span class="warning-badge">注意</span>
+              <p class="small">{describeLineRemoval(selectedLineInfo)}</p>
+            </div>
+          {:else}
+            <p class="muted small desc-text">{describeLineRemoval(selectedLineInfo)}</p>
+          {/if}
+        </div>
+      {:else}
+        <p class="muted small desc-text">仕切りの線が選択されています。</p>
+      {/if}
       <div class="action-row">
         <button
           type="button"
@@ -562,22 +576,30 @@
               <option value={9}>9等分</option>
               <option value={10}>10等分</option>
             </select>
-            <div class="btn-group">
+            <div class="btn-group split-btn-group">
               <button
                 type="button"
-                class="small"
+                class="small split-btn"
                 onclick={() => handleSplitEven('y')}
                 title="横の線で、上から下へ同じ高さに分けます"
               >
-                上下に分ける
+                <svg class="split-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="2" y="2" width="12" height="12" rx="1" />
+                  <line x1="2" y1="8" x2="14" y2="8" />
+                </svg>
+                <span>上下に分ける</span>
               </button>
               <button
                 type="button"
-                class="small"
+                class="small split-btn"
                 onclick={() => handleSplitEven('x')}
                 title="縦の線で、左から右へ同じ幅に分けます"
               >
-                左右に分ける
+                <svg class="split-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="2" y="2" width="12" height="12" rx="1" />
+                  <line x1="8" y1="2" x2="8" y2="14" />
+                </svg>
+                <span>左右に分ける</span>
               </button>
             </div>
           </div>
@@ -802,7 +824,10 @@
                 }}
                 title="名前の変更"
               >
-                ✏️
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
               </button>
             {/if}
           {/if}
@@ -934,6 +959,20 @@
     min-height: 32px;
   }
 
+  .split-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .split-icon {
+    flex-shrink: 0;
+    opacity: 0.85;
+  }
+
   .action-row {
     display: flex;
     justify-content: flex-start;
@@ -994,5 +1033,42 @@
     min-height: 28px;
     padding: 0 var(--space-2);
     font-size: var(--font-size-small);
+  }
+
+  .selected-line-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+
+  .selected-line-summary {
+    font-size: var(--font-size-normal);
+    color: var(--text);
+  }
+
+  .delete-warning-box {
+    background: rgba(220, 53, 69, 0.08);
+    border: 1px solid rgba(220, 53, 69, 0.25);
+    border-radius: var(--radius-small);
+    padding: var(--space-2);
+    margin-top: var(--space-1);
+    color: var(--text);
+  }
+
+  .delete-warning-box p {
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .warning-badge {
+    display: inline-block;
+    background: #dc3545;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-bottom: 4px;
   }
 </style>

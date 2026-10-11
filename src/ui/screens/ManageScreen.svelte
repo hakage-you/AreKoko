@@ -3,16 +3,21 @@
   import { getApp } from '../context';
   import type { Id, Tag } from '../../core/types';
   import { getIndexes } from '../../core/indexes';
-  import { createTag, renameTag } from '../../core/ops/tags';
+  import { createTag, renameTag, setTagColor } from '../../core/ops/tags';
   import {
     createCategory,
     renameCategory,
     moveCategory,
     deleteCategory,
+    setCategoryColor,
   } from '../../core/ops/categories';
   import CategoryPicker from '../components/CategoryPicker.svelte';
+  import ColorPicker from '../components/ColorPicker.svelte';
+  import { getSwatchStyle } from '../color';
 
   const app = getApp();
+
+  let activeColorPicker = $state<{ type: 'tag' | 'category'; id: Id } | null>(null);
 
   // タグ関連
   let newTagName = $state('');
@@ -65,6 +70,7 @@
     name: string;
     depth: number;
     parent: Id | null;
+    color?: string;
     directCount: number;
   }
 
@@ -81,6 +87,7 @@
           name: cat.name,
           depth,
           parent: cat.parent,
+          color: cat.color,
           directCount,
         });
         traverse(cat.id, depth + 1);
@@ -90,6 +97,16 @@
     traverse(null, 0);
     return list;
   });
+
+  function handleSelectTagColor(tagId: Id, color: string | null) {
+    app.apply((doc) => setTagColor(doc, tagId, color));
+    activeColorPicker = null;
+  }
+
+  function handleSelectCatColor(catId: Id, color: string | null) {
+    app.apply((doc) => setCategoryColor(doc, catId, color));
+    activeColorPicker = null;
+  }
 
   function handleCreateTopCategory() {
     const trimmed = newTopCategoryName.trim();
@@ -124,7 +141,35 @@
   }
 
   function handleDeleteCategory(catId: Id) {
-    app.apply((doc, ctx) => deleteCategory(doc, catId, ctx));
+    if (!indexes || !$app.doc) return;
+    const targetCat = $app.doc.membership.categories.find((c) => c.id === catId);
+    if (!targetCat) return;
+    const directCount = indexes.itemsByCategory.get(catId)?.length ?? 0;
+    const childCats = indexes.childCategories.get(catId) ?? [];
+    const parentCat = targetCat.parent
+      ? $app.doc.membership.categories.find((c) => c.id === targetCat.parent)
+      : null;
+    const destName = parentCat ? `親カテゴリ「${parentCat.name}」` : '未分類';
+
+    const message = `カテゴリ「${targetCat.name}」を削除します。`;
+    const details: string[] = [];
+    if (directCount > 0) {
+      details.push(`所属しているモノ ${directCount}件は ${destName} に移ります。`);
+    }
+    if (childCats.length > 0) {
+      details.push(`子カテゴリ ${childCats.length}件は ${destName} に移ります。`);
+    }
+
+    app.confirm({
+      title: 'カテゴリの削除',
+      message,
+      details,
+      confirmLabel: '削除する',
+      danger: true,
+      onConfirm: () => {
+        app.apply((doc, ctx) => deleteCategory(doc, catId, ctx));
+      },
+    });
   }
 </script>
 
@@ -169,6 +214,28 @@
               />
             {:else}
               <div class="item-name-group">
+                <div class="color-picker-trigger-wrapper">
+                  <button
+                    type="button"
+                    class="color-badge-trigger"
+                    style={getSwatchStyle(tag.color)}
+                    title={tag.color ? '色を変更' : '色を設定'}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      activeColorPicker = (activeColorPicker?.type === 'tag' && activeColorPicker?.id === tag.id)
+                        ? null
+                        : { type: 'tag', id: tag.id };
+                    }}
+                    aria-label="タグの色を変更"
+                  ></button>
+                  {#if activeColorPicker?.type === 'tag' && activeColorPicker?.id === tag.id}
+                    <ColorPicker
+                      color={tag.color}
+                      onSelect={(c) => handleSelectTagColor(tag.id, c)}
+                      onClose={() => { activeColorPicker = null; }}
+                    />
+                  {/if}
+                </div>
                 <span class="item-name">{tag.name}</span>
                 <span class="chip small muted">
                   {indexes?.itemsByTag.get(tag.id)?.length ?? 0}件
@@ -246,6 +313,28 @@
               />
             {:else}
               <div class="item-name-group">
+                <div class="color-picker-trigger-wrapper">
+                  <button
+                    type="button"
+                    class="color-badge-trigger"
+                    style={getSwatchStyle(cat.color)}
+                    title={cat.color ? '色を変更' : '色を設定'}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      activeColorPicker = (activeColorPicker?.type === 'category' && activeColorPicker?.id === cat.id)
+                        ? null
+                        : { type: 'category', id: cat.id };
+                    }}
+                    aria-label="カテゴリの色を変更"
+                  ></button>
+                  {#if activeColorPicker?.type === 'category' && activeColorPicker?.id === cat.id}
+                    <ColorPicker
+                      color={cat.color}
+                      onSelect={(c) => handleSelectCatColor(cat.id, c)}
+                      onClose={() => { activeColorPicker = null; }}
+                    />
+                  {/if}
+                </div>
                 <span class="item-name">{cat.name}</span>
                 <span class="chip small muted">{cat.directCount}件</span>
               </div>
@@ -352,8 +441,13 @@
   .manage-screen {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    align-items: start;
     gap: var(--space-5);
-    padding: var(--space-4);
+    padding: var(--space-5) var(--space-4);
+    max-width: 1040px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
     height: 100%;
     overflow-y: auto;
   }
@@ -399,7 +493,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    overflow-y: auto;
+    overflow: visible;
   }
 
   .row-item {
@@ -450,5 +544,31 @@
   .empty {
     padding: var(--space-5);
     text-align: center;
+  }
+
+  .color-picker-trigger-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .color-badge-trigger {
+    width: 18px;
+    height: 18px;
+    min-height: 0;
+    min-width: 0;
+    padding: 0;
+    border-radius: 50%;
+    border: 1.5px dashed var(--border);
+    background: transparent;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: transform var(--duration-fast), border-color var(--duration-fast);
+    flex-shrink: 0;
+  }
+
+  .color-badge-trigger:hover {
+    border-color: var(--accent);
+    transform: scale(1.15);
   }
 </style>

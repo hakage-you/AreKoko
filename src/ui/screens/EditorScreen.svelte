@@ -1,5 +1,6 @@
 <script lang="ts">
   import { UNDO_KEYS, REDO_KEYS } from '../keys';
+  import { flashWhenEnabled } from '../actions';
   import { getApp } from '../context';
   import { createEditorUi } from '../editor/editorUi.svelte';
   import Canvas from '../editor/Canvas.svelte';
@@ -137,14 +138,11 @@
         <button type="button" class="ghost small" onclick={handleCancelDraft} title="下書きを捨てて、開く前の画面に戻ります">
           下書きを捨てる
         </button>
-      {:else}
-        <button type="button" class="ghost small" onclick={handleLeaveEditor} title="編集を終えて、開く前の画面に戻ります（変更はもう文書に入っています）">
-          ← 戻る
-        </button>
       {/if}
       <h2 class="editor-title">{title}</h2>
       <div class="history-buttons">
-        <button type="button" class="ghost small" disabled={!canUndo} onclick={handleUndo} title="直前の操作を取り消します（{UNDO_KEYS}）">元に戻す</button>
+        <!-- 開いて最初の操作などで押せるようになったら、短く光らせる（下書きで線を消すときは確認しないかわり。TRS 付録B I-18） -->
+        <button type="button" class="ghost small" disabled={!canUndo} onclick={handleUndo} use:flashWhenEnabled={canUndo} title="直前の操作を取り消します（{UNDO_KEYS}）">元に戻す</button>
         <button type="button" class="ghost small" disabled={!canRedo} onclick={handleRedo} title="取り消した操作をやり直します（{REDO_KEYS}）">やり直す</button>
       </div>
     </div>
@@ -167,6 +165,15 @@
           title="下書きを文書に入れます"
         >
           確定する
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="primary small"
+          onclick={handleLeaveEditor}
+          title="編集を終えて、開く前の画面に戻ります（変更はもう文書に入っています）"
+        >
+          編集を終了
         </button>
       {/if}
     </div>
@@ -194,9 +201,9 @@
                 <li><b>仕切りを動かす・消す</b>：「選ぶ」で線を押すと、ドラッグで動かせます。消すのは横（スマホでは下）の欄から。消したエリアのモノは外側のエリアに移ります（先に見せます）。</li>
                 <li><b>名前を変える</b>：エリアを押して、横の欄で。</li>
                 <li><b>外形を変えたいとき</b>：クウカンの一覧の「…」→「複製」で下書きを作り直し、「元と置き換える」で確定します。</li>
-                <li>変更はすぐ文書に入ります。終わったら左上の「← 戻る」。間違えたら「元に戻す」。</li>
+                <li>変更はすぐ文書に入ります。終わったら右上の「編集を終了」。間違えたら「元に戻す」。</li>
               {:else if draftHasOutline}
-                <li><b>形を整える</b>：上の「辺を動かす」「段差を足す」で、L字などにできます（長方形のままでもかまいません）。</li>
+                <li><b>形を整える</b>：外形の辺をつかんでドラッグすると大きさが変わり、上の「段差を足す」でL字などにできます（長方形のままでもかまいません）。</li>
                 <li><b>エリアに分ける</b>：「左右に分ける」「上下に分ける」を選んで、分けたい所を押します。</li>
                 <li><b>目印を置く</b>（なくてもよい）：ドアや柱は「マーカーを置く」で。</li>
               {:else}

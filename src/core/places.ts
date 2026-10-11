@@ -1,7 +1,7 @@
 // 置き場の計算。詳細設計 2.5, 7.2、付録A.8。
 
 import { NAMELESS_NAME, NIL_ID, UNSET_NAME } from './constants';
-import { getIndexes } from './indexes';
+import { buildAreaTree, getIndexes } from './indexes';
 import type { Area, ArekokoDocument, Id, Item } from './types';
 
 export interface PathStep {
@@ -246,6 +246,29 @@ export function isInsideKuukan(doc: ArekokoDocument, place: Id, kuukan: Id): boo
   }
 
   return false;
+}
+
+/**
+ * クウカンに属する分けていないエリア（子を持たない選択可能なエリア）一覧を返す。
+ */
+export function leafAreasOfKuukan(doc: ArekokoDocument, kuukan: Id): Area[] {
+  const areas = doc.membership.areas.filter(a => a.kuukan === kuukan);
+  if (areas.length === 0) return [];
+  const tree = buildAreaTree(doc, kuukan);
+  return areas.filter(
+    a => !tree.children.has(a.id) || (tree.children.get(a.id)?.length ?? 0) === 0,
+  );
+}
+
+/**
+ * 指定したエリアが、指定したクウカンの有効な分けていないエリア（選択可能なエリア）であるかを判定する。
+ */
+export function isValidLeafArea(doc: ArekokoDocument, kuukan: Id, areaId: Id | null): boolean {
+  if (areaId === null) return false;
+  const exists = doc.membership.areas.some(a => a.id === areaId && a.kuukan === kuukan);
+  if (!exists) return false;
+  const tree = buildAreaTree(doc, kuukan);
+  return !tree.children.has(areaId) || (tree.children.get(areaId)?.length ?? 0) === 0;
 }
 
 /**

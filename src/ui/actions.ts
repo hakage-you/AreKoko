@@ -12,9 +12,7 @@ export function autofocus(node: HTMLElement, enabled = true): void {
 export function attention(node: HTMLElement, key: unknown) {
   let last = key;
   function flash(): void {
-    node.classList.remove('attention-flash');
-    void node.offsetWidth; // 付け直してアニメーションをもう一度動かす
-    node.classList.add('attention-flash');
+    restartFlash(node);
     node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   const onEnd = () => node.classList.remove('attention-flash');
@@ -31,4 +29,29 @@ export function attention(node: HTMLElement, key: unknown) {
       node.removeEventListener('animationend', onEnd);
     },
   };
+}
+
+/**
+ * 押せるようになったことを知らせる。enabled が false から true に変わったとき、短く光らせる（最初から true なら光らせない）。
+ * 光り方は attention と同じ（theme.css の .attention-flash）。クウカン編集の「元に戻す」に使う（TRS 付録B I-18）。
+ */
+export function flashWhenEnabled(node: HTMLElement, enabled: boolean) {
+  let last = enabled;
+  const onEnd = () => node.classList.remove('attention-flash');
+  node.addEventListener('animationend', onEnd);
+  return {
+    update(next: boolean) {
+      if (next && !last) restartFlash(node);
+      last = next;
+    },
+    destroy() {
+      node.removeEventListener('animationend', onEnd);
+    },
+  };
+}
+
+function restartFlash(node: HTMLElement): void {
+  node.classList.remove('attention-flash');
+  void node.offsetWidth; // 付け直してアニメーションをもう一度動かす
+  node.classList.add('attention-flash');
 }

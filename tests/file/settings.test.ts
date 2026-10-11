@@ -65,13 +65,13 @@ describe('file/settings', () => {
 
   it('保存と読み込みができる', () => {
     const storage = new FakeStorage();
-    saveSettings({ autosave: false }, storage);
+    saveSettings({ autosave: false, theme: 'dark' }, storage);
     const loaded = loadSettings(storage);
-    expect(loaded).toEqual({ autosave: false });
+    expect(loaded).toEqual({ autosave: false, theme: 'dark' });
 
-    saveSettings({ autosave: true }, storage);
+    saveSettings({ autosave: true, theme: 'light' }, storage);
     const loaded2 = loadSettings(storage);
-    expect(loaded2).toEqual({ autosave: true });
+    expect(loaded2).toEqual({ autosave: true, theme: 'light' });
   });
 
   it('壊れた JSON や不正な形式の場合は初期値を返す', () => {

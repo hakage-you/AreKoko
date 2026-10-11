@@ -1,7 +1,7 @@
 // public/schema.json による検査と、違反の振り分け。詳細設計 4.2 の 3.、付録A.10。
 
 import Ajv2020, { type ErrorObject } from 'ajv/dist/2020';
-import schema from '../../public/schema.json';
+import schema from './schema.json';
 
 export interface SchemaIssue {
   path: string;

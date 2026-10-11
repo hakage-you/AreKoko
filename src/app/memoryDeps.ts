@@ -46,8 +46,12 @@ export class MemoryBackend implements FileBackend {
   }
 }
 
-/** 最初のスケッチ（Room A → 棚A1 → BOX1）に近い見本の文書。 */
-export function sampleDocument(): ArekokoDocument {
+/**
+ * シナリオの試験の見本の文書（最初のスケッチ Room A → 棚A1 → BOX1 に近い形）。
+ * 結合試験と E2E（`?memory`）が使う。中身を変えると docs/scenarios.md の期待が変わるので、
+ * 利用者向けの見本（src/core/sample.ts。最初の画面の「見本を開く」）とは分けて持つ。
+ */
+export function scenarioDocument(): ArekokoDocument {
   const ctx: OpContext = { newId, now: () => new Date().toISOString() };
   let doc = createEmptyDocument();
   const run = (f: (d: ArekokoDocument) => OpResult): Id[] => {
@@ -112,7 +116,7 @@ export function exposeStore(store: AppStore): void {
 
 export function memoryDeps(): AppDeps {
   let settings: AppSettings = { autosave: true };
-  const sample = new MemoryBackend('見本.json', serializeDocument(sampleDocument()));
+  const sample = new MemoryBackend('見本.json', serializeDocument(scenarioDocument()));
   const files = new Map<string, MemoryBackend>();
   let queued: MemoryBackend | null = null;
   const memory: ArekokoMemoryHook = {
@@ -147,6 +151,15 @@ export function memoryDeps(): AppDeps {
       const backend = new MemoryBackend(name);
       files.set(name, backend);
       return backend;
+    },
+    async openDroppedFile(dataTransfer: DataTransfer) {
+      const file = dataTransfer.files?.[0];
+      if (file) {
+        const text = await file.text();
+        const backend = new MemoryBackend(file.name, text);
+        return { backend, text, stat: { lastModified: file.lastModified } };
+      }
+      return null;
     },
     supportsFileSystemAccess: () => true,
     listRecent: async () => [],

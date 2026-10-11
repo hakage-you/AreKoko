@@ -60,12 +60,16 @@ export interface Category {
   id: Id;
   name: string;
   parent: Id | null;
+  /** ラベルの色（HEXカラーコード #rrggbb 等）。未指定なら既定色。 */
+  color?: string;
   notices?: Notice[];
 }
 
 export interface Tag {
   id: Id;
   name: string;
+  /** ラベルの色（HEXカラーコード #rrggbb 等）。未指定なら既定色。 */
+  color?: string;
   notices?: Notice[];
 }
 

@@ -25,6 +25,43 @@
     <h1 class="settings-title">設定</h1>
 
     <section class="settings-section">
+      <h2 class="section-title">外観</h2>
+
+      <div class="setting-item">
+        <span class="setting-field-label">テーマ</span>
+        <div class="theme-switcher" role="group" aria-label="テーマの切り替え">
+          <button
+            type="button"
+            class="theme-btn"
+            class:active={$app.theme === 'system'}
+            onclick={() => app.setTheme('system')}
+          >
+            システム連動
+          </button>
+          <button
+            type="button"
+            class="theme-btn"
+            class:active={$app.theme === 'light'}
+            onclick={() => app.setTheme('light')}
+          >
+            ライト
+          </button>
+          <button
+            type="button"
+            class="theme-btn"
+            class:active={$app.theme === 'dark'}
+            onclick={() => app.setTheme('dark')}
+          >
+            ダーク
+          </button>
+        </div>
+        <p class="setting-description">
+          画面の配色（ライト・ダークモード）を切り替えます。この設定はこのブラウザに保存されます。
+        </p>
+      </div>
+    </section>
+
+    <section class="settings-section">
       <h2 class="section-title">保存</h2>
 
       <div class="setting-item">
@@ -135,6 +172,47 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  .setting-field-label {
+    display: block;
+    font-size: var(--font-size);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+  }
+
+  .theme-switcher {
+    display: inline-flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3px;
+    gap: 3px;
+    margin-bottom: var(--space-2);
+  }
+
+  .theme-btn {
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-small);
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-small);
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    min-height: 32px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .theme-btn:hover:not(.active) {
+    color: var(--text);
+  }
+
+  .theme-btn.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    font-weight: 600;
   }
 
   .autosave-label {

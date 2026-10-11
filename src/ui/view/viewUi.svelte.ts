@@ -28,6 +28,8 @@ export interface ViewUi {
   message: string | null;
   /** ずれの説明を開いているモノ。 */
   offsetOpen: Id | null;
+  /** 配置モード開始前や配置モード中に選択していたモノ。配置終了時に詳細パネルを復帰するために保持。 */
+  detailToRestore: Id | null;
 }
 
 const KEY = Symbol('arekoko-view-ui');
@@ -41,6 +43,7 @@ export function createViewUi(): ViewUi {
   let fitRequest = $state(0);
   let message = $state<string | null>(null);
   let offsetOpen = $state<Id | null>(null);
+  let detailToRestore = $state<Id | null>(null);
 
   const ui: ViewUi = {
     get selectedDrawing() {
@@ -95,6 +98,12 @@ export function createViewUi(): ViewUi {
     set offsetOpen(v: Id | null) {
       offsetOpen = v;
     },
+    get detailToRestore() {
+      return detailToRestore;
+    },
+    set detailToRestore(v: Id | null) {
+      detailToRestore = v;
+    },
   };
 
   setContext(KEY, ui);
@@ -106,3 +115,8 @@ export function getViewUi(): ViewUi {
   if (!ui) throw new Error('ViewUi が見つかりません（ViewScreen の中で使ってください）');
   return ui;
 }
+
+export function tryGetViewUi(): ViewUi | null {
+  return getContext<ViewUi | undefined>(KEY) ?? null;
+}
+

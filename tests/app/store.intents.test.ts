@@ -92,15 +92,50 @@ describe('addItemInView（クウカンビューの「＋モノを追加」）', 
 });
 
 describe('モノの削除（設計 8.4）', () => {
-  it('deleteItem：1件は確認せずに消す。収納なら中身は収納があった置き場へ移り、ハイライトされる（7.8）', async () => {
+  it('requestDeleteItem：ふつうのモノは1件なら確認せずに消し、onDone を呼ぶ', async () => {
     const s = await shelf();
     const { app } = s;
-    app.deleteItem(s.toolbox);
+    let done = 0;
+    app.requestDeleteItem(s.light, () => { done++; });
+    expect(app.state.dialog).toBeNull();
+    expect(item(app, s.light)).toBeUndefined();
+    expect(done).toBe(1);
+    expectHealthy(app, s.file);
+  });
+
+  it('requestDeleteItem：収納のモノは、中のクウカンがなくなり中のモノが何件どこへ移るかを見せて確認する。確認すると消え、中身は収納があった置き場へ移り、ハイライトされる（7.5・7.8、付録B I-17）', async () => {
+    const s = await shelf();
+    const { app } = s;
+    let done = 0;
+    const before = app.state.doc;
+    app.requestDeleteItem(s.toolbox, () => { done++; });
+    const d = confirmDialog(app);
+    expect(d.message).toContain('工具箱');
+    expect(d.message).toContain('1件');
+    expect(d.details).toHaveLength(1);
+    expect(d.details[0]).toMatch(/工具箱 から 1件（ドライバー）→ .*段1$/);
+    expect(app.state.doc).toBe(before);
+    expect(done).toBe(0);
+
+    d.onConfirm();
     expect(app.state.dialog).toBeNull();
     expect(item(app, s.toolbox)).toBeUndefined();
+    expect(app.state.doc!.membership.kuukans.some(k => k.owner === s.toolbox)).toBe(false);
     expect(item(app, s.driver)!.place).toBe(s.dan1);
     expect(app.state.highlights.has(s.driver)).toBe(true);
+    expect(done).toBe(1);
     expectHealthy(app, s.file);
+  });
+
+  it('requestDeleteItem：収納のモノの確認を閉じれば何も変わらない', async () => {
+    const s = await shelf();
+    const { app } = s;
+    let done = 0;
+    const before = app.state.doc;
+    app.requestDeleteItem(s.toolbox, () => { done++; });
+    app.closeDialog();
+    expect(app.state.doc).toBe(before);
+    expect(done).toBe(0);
   });
 
   it('requestDeleteSelection：件数と、どこから何件がどこへ移るかを見せて確認する。確認するまで文書は変わらない', async () => {

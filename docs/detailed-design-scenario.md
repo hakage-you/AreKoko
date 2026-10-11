@@ -27,7 +27,7 @@
 | 操作 | 内容 | 今の場所 |
 |---|---|---|
 | `addItemInView(name): Id \| null` | クウカンビューの「＋モノを追加」。名前は前後の空白を除き、空なら何もしない。置き場は選んでいるエリア、なければ開いているクウカン（V2）。追加したモノの詳細を開き、そのIDを返す | `view/ItemList.svelte` |
-| `deleteItem(id)` | 1件の削除。確認しない（設計 8.4。元に戻すで補う） | `components/ItemDetail.svelte` |
+| `requestDeleteItem(id, onDone?)` | 1件の削除。ふつうのモノは確認しない（設計 8.4。元に戻すで補う）。収納のモノは、中のクウカンがなくなり中のモノが何件どこへ移るかを見せて確認する（設計 7.5、TRS 付録B I-17）。消したら `onDone` を呼ぶ | `components/ItemDetail.svelte` |
 | `requestDeleteSelection()` | 複数選択のまとめて削除。件数と影響を見せて確認し、削除したら選択を空にする | `components/BulkBar.svelte` |
 | `requestRemoveStorage(item)` | 収納設定の削除。影響を見せて確認する | `components/ItemDetail.svelte` |
 | `requestDeleteKuukan(kuukan)` | どこにも置かれていないクウカンの削除。影響を見せて確認する | `screens/KuukanScreen.svelte` |
@@ -63,7 +63,7 @@ e2e/
 | 名前 | 内容 |
 |---|---|
 | `store` | 画面が使っている `AppStore`。試験は `store.state` を読むだけにして、操作は画面から行う |
-| `sample` | 見本のファイル（「ファイルを開く」で開く） |
+| `sample` | シナリオ用の見本のファイル（「ファイルを開く」で開く）。中身は `scenarioDocument()`（`src/app/memoryDeps.ts`）で、利用者向けの見本（`src/core/sample.ts`。最初の画面の「見本を開く」）とは分けて持つ。利用者向けの見本を良くしても、シナリオの期待が変わらないようにするため |
 | `files` | 「新しく作る」「別の名前で保存」で作ったファイル（名前 → 保存先） |
 | `queueOpen(name, text)` | 次の「ファイルを開く」で開くファイルを差し替える（壊れたファイルの試験用） |
 

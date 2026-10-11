@@ -15,7 +15,7 @@ test('SC-04 確定したクウカンの仕切りを消して、中身が親へ�
   await test.step('SC-04-1 見本を開き、棚A1 を開いて「編集」 → 棚A1 の編集', async () => {
     await openSample(page);
     await page.getByRole('button', { name: '棚A1', exact: true }).click();
-    await page.getByRole('button', { name: '編集', exact: true }).click();
+    await page.getByRole('button', { name: /編集/ }).click();
     const s = await snapshot(page);
     before = s.doc!;
     tanaK = kuukanOwnedBy(before, findItem(before, '棚A1').id)!.id;

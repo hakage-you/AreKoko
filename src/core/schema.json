@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "アレココの文書",
+  "description": "アレココ（物の置き場所を管理するアプリ）の文書。家全体を1つのJSONファイルで持つ。データは所属の層（membership）と描画の層（drawing）に分かれ、描画の層だけが所属の層のIDを参照する。参照の整合性（不変条件）はこのスキーマでは表せないため、説明ページを参照すること。アプリが知らない項目は保存時にも残される。",
+  "type": "object",
+  "required": ["app", "schemaVersion", "membership"],
+  "properties": {
+    "app": { "const": "arekoko", "description": "常に \"arekoko\"。" },
+    "schemaVersion": { "const": 1, "description": "形式のバージョン番号。" },
+    "membership": { "$ref": "#/$defs/membership" },
+    "drawing": { "$ref": "#/$defs/drawing" }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ID。アプリが作るIDは UUID v7（小文字）。新しく足す要素には \"new:\" で始まる仮ID（例：\"new:電池\"）を付けてよい。読み込み時に UUID v7 へ付け替えられ、参照もまとめて書き換えられる。UUID v7 でないIDも仮IDと同じく付け替えられる。Nil UUID（00000000-0000-0000-0000-000000000000）は未設定のクウカン専用。"
+    },
+    "nullableId": {
+      "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+    },
+    "notices": {
+      "type": "array",
+      "description": "修復メモ。読み込み時の修復でアプリが書く。手で足さないこと。",
+      "items": {
+        "type": "object",
+        "required": ["at", "text"],
+        "properties": {
+          "at": { "type": "string", "description": "ISO 8601 の日時。" },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "membership": {
+      "type": "object",
+      "description": "所属の層。何がどこにあるかを表す。描画の層を参照しない。",
+      "properties": {
+        "kuukans": { "type": "array", "items": { "$ref": "#/$defs/kuukan" } },
+        "areas": { "type": "array", "items": { "$ref": "#/$defs/area" } },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/item" } },
+        "categories": { "type": "array", "items": { "$ref": "#/$defs/category" } },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/tag" } }
+      }
+    },
+    "kuukan": {
+      "type": "object",
+      "description": "クウカン。置き場を持つ存在。どこにも置かれていないクウカン（部屋など）は owner が null で、名前を持つ。収納の中のクウカンは owner に持ち主のモノのIDを持ち、名前は持たない（持ち主のモノの名前で表示される）。",
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "owner": { "$ref": "#/$defs/nullableId" },
+        "areaLabel": { "type": "string", "description": "エリアの呼び名（例：床、段、引き出し）。省略すると「エリア」。" },
+        "notices": { "$ref": "#/$defs/notices" }
+      },
+      "if": {
+        "required": ["owner"],
+        "properties": { "owner": { "type": "string" } }
+      },
+      "else": { "required": ["name"] }
+    },
+    "area": {
+      "type": "object",
+      "description": "エリア。仕切りでできる区画で、置き場になる。仕切りは描画の層にあるため、エリアはアプリで描いて作ること。",
+      "required": ["id", "kuukan", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kuukan": { "$ref": "#/$defs/id", "description": "所属するクウカンのID。" },
+        "parent": { "$ref": "#/$defs/nullableId", "description": "親のエリアのID。null ならクウカンそのものの直下。" },
+        "name": { "type": "string" },
+        "order": { "type": "integer", "description": "兄弟の中の並び。" },
+        "notices": { "$ref": "#/$defs/notices" }
+      }
+    },
+    "item": {
+      "type": "object",
+      "description": "モノ。1つの置き場にだけ置かれる。",
+      "required": ["id", "name", "place"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "place": { "$ref": "#/$defs/id", "description": "置き場。クウカンのID（クウカンそのもの）か、エリアのID。決まっていなければ未設定（Nil UUID）。" },
+        "category": { "$ref": "#/$defs/nullableId", "description": "カテゴリのID。null または省略で未分類。" },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/id" }, "description": "タグのIDの一覧。同じタグを2回入れないこと。" },
+        "summary": { "type": "string", "description": "概要。" },
+        "qty": { "type": "integer", "minimum": 0, "description": "数量。分からなければ省略する（1 とはしない）。" },
+        "updatedAt": { "type": "string", "description": "更新日時（ISO 8601）。アプリが書く。" },
+        "notices": { "$ref": "#/$defs/notices" }
+      }
+    },
+    "category": {
+      "type": "object",
+      "description": "カテゴリ。モノの種類。親子関係がある（親が null ならいちばん上）。",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "parent": { "$ref": "#/$defs/nullableId" },
+        "color": { "type": "string", "description": "ラベルの色（HEXカラーコード #rrggbb 等）。" },
+        "notices": { "$ref": "#/$defs/notices" }
+      }
+    },
+    "tag": {
+      "type": "object",
+      "description": "タグ。横断的な目印。親子関係はない。",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "color": { "type": "string", "description": "ラベルの色（HEXカラーコード #rrggbb 等）。" },
+        "notices": { "$ref": "#/$defs/notices" }
+      }
+    },
+    "point": {
+      "type": "array",
+      "description": "比率の座標 [x, y]。クウカンの外形を囲む長方形を 0〜10000 とする整数。x は右、y は下へ増える。",
+      "prefixItems": [{ "type": "integer" }, { "type": "integer" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "rotation": { "type": "integer", "minimum": 0, "maximum": 7, "description": "回転。45度の何倍か。" },
+    "shape": {
+      "description": "描画の形。点、長方形、直角多角形のどれか。",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "at"],
+          "properties": { "type": { "const": "point" }, "at": { "$ref": "#/$defs/point" } }
+        },
+        {
+          "type": "object",
+          "required": ["type", "x", "y", "w", "h"],
+          "properties": {
+            "type": { "const": "rect" },
+            "x": { "type": "integer" },
+            "y": { "type": "integer" },
+            "w": { "type": "integer", "minimum": 1 },
+            "h": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "points"],
+          "properties": {
+            "type": { "const": "poly" },
+            "points": { "type": "array", "items": { "$ref": "#/$defs/point" }, "minItems": 4 }
+          }
+        }
+      ]
+    },
+    "drawing": {
+      "type": "object",
+      "description": "描画の層（平面図）。AIによる編集は勧めない。アプリで描くこと。問題のある描画は、読み込み時にその描画だけが外される。",
+      "properties": {
+        "kuukans": { "type": "array", "items": { "$ref": "#/$defs/kuukanDrawing" } },
+        "partitions": { "type": "array", "items": { "$ref": "#/$defs/partition" } },
+        "markers": { "type": "array", "items": { "$ref": "#/$defs/marker" } },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/itemDrawing" } }
+      }
+    },
+    "kuukanDrawing": {
+      "type": "object",
+      "required": ["kuukan", "outline", "aspect"],
+      "properties": {
+        "kuukan": { "$ref": "#/$defs/id" },
+        "outline": {
+          "type": "array",
+          "description": "外形。辺がすべて縦か横の、穴のない多角形。外接長方形はちょうど [0,10000]×[0,10000]。",
+          "items": { "$ref": "#/$defs/point" },
+          "minItems": 4
+        },
+        "aspect": { "type": "number", "exclusiveMinimum": 0, "description": "実際の 幅 / 奥行。" },
+        "realSize": {
+          "type": "object",
+          "description": "実際の長さ（cm）。表示用。",
+          "properties": {
+            "w": { "type": "number", "exclusiveMinimum": 0 },
+            "d": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    },
+    "partition": {
+      "type": "object",
+      "description": "仕切り。所属の層のエリアの木と対応する。",
+      "required": ["area", "axis", "at", "children"],
+      "properties": {
+        "area": { "$ref": "#/$defs/id", "description": "分けたエリアのID。クウカンそのものを分けたときはクウカンのID。" },
+        "axis": { "enum": ["x", "y"], "description": "x：x = at の縦の線。y：y = at の横の線。" },
+        "at": { "type": "array", "items": { "type": "integer" }, "minItems": 1, "description": "線の位置（昇順）。" },
+        "seed": { "$ref": "#/$defs/point", "description": "境界で止める仕切りの線分を決める点。at が1つのときだけ持つ。" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/id" }, "minItems": 2, "description": "分かれたエリアのID（座標の小さい順）。" }
+      }
+    },
+    "marker": {
+      "type": "object",
+      "description": "マーカー。ドアや柱などの目印。",
+      "required": ["id", "kuukan", "shape"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kuukan": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "shape": { "$ref": "#/$defs/shape" },
+        "rotation": { "$ref": "#/$defs/rotation" },
+        "notAPlace": { "type": "boolean", "description": "使われていない（古い文書との互換のために受け付ける。以前の「置き場にしない」）。" }
+      }
+    },
+    "itemDrawing": {
+      "type": "object",
+      "required": ["item", "shape"],
+      "properties": {
+        "item": { "$ref": "#/$defs/id" },
+        "shape": { "$ref": "#/$defs/shape" },
+        "rotation": { "$ref": "#/$defs/rotation" }
+      }
+    }
+  }
+}

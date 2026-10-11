@@ -159,17 +159,6 @@
       </button>
     </div>
   </div>
-
-  <nav class="nav nav-mobile" aria-label="画面の切り替え（スマホ）">
-    <div class="mobile-main">
-      {@render tab('クウカン', onKuukan, () => app.setScreen('kuukans'))}
-      {@render tab('サガシモノ', $app.screen === 'search', () => app.setScreen('search'))}
-    </div>
-    <div class="mobile-sub">
-      {@render tab('管理', $app.screen === 'manage', () => app.setScreen('manage'), true)}
-      {@render tab('設定', $app.screen === 'settings', () => app.setScreen('settings'), true)}
-    </div>
-  </nav>
 </header>
 
 <style>
@@ -383,36 +372,6 @@
       padding: 0 var(--space-2);
       min-width: 36px;
       justify-content: center;
-    }
-
-    .nav-mobile {
-      display: flex;
-    }
-
-    .mobile-main {
-      display: flex;
-      flex: 2;
-      gap: var(--space-1);
-    }
-
-    .mobile-main .nav-tab {
-      flex: 1;
-    }
-
-    .mobile-main .nav-tab.active {
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
-    .mobile-sub {
-      display: flex;
-      flex: 1;
-      gap: var(--space-1);
-    }
-
-    .mobile-sub .nav-tab {
-      flex: 1;
-      padding: 0 var(--space-1);
     }
   }
 </style>

@@ -43,6 +43,11 @@
       >
         キャンセル
       </button>
+      {#if dialog.secondary}
+        <button type="button" onclick={() => dialog.secondary?.onSelect()}>
+          {dialog.secondary.label}
+        </button>
+      {/if}
       <button
         type="button"
         class={dialog.danger ? 'danger primary' : 'primary'}

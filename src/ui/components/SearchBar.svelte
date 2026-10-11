@@ -6,6 +6,7 @@
   import CategoryPicker from './CategoryPicker.svelte';
   import TagPicker from './TagPicker.svelte';
   import PlacePicker from './PlacePicker.svelte';
+  import { getBadgeStyle } from '../color';
 
   const app = getApp();
 
@@ -135,13 +136,18 @@
 
 <div class="search-bar">
   <div class="search-input-wrapper">
+    <svg class="search-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
     <input
       type="search"
-      placeholder="名前・概要で探す"
+      placeholder="名前・概要で探す…"
       value={$app.query.text ?? ''}
       oninput={handleTextInput}
       aria-label="検索キーワード"
     />
+    <kbd class="shortcut-hint" title="ショートカットキー">/ または Ctrl+K</kbd>
   </div>
 
   {#if hasSuggestions}
@@ -151,18 +157,20 @@
         <button
           type="button"
           class="chip suggestion-chip"
+          style={getBadgeStyle(cat.color)}
           onclick={() => applyCategorySuggestion(cat)}
         >
-          📁 {cat.name}
+          {cat.name}
         </button>
       {/each}
       {#each suggestions.tags as tag (tag.id)}
         <button
           type="button"
           class="chip suggestion-chip"
+          style={getBadgeStyle(tag.color)}
           onclick={() => applyTagSuggestion(tag)}
         >
-          🏷️ {tag.name}
+          #{tag.name}
         </button>
       {/each}
     </div>
@@ -184,7 +192,8 @@
 
       <div class="chips-area">
         {#if $app.query.category !== undefined}
-          <span class="chip accent filter-chip">
+          {@const selectedCat = $app.query.category && $app.doc ? $app.doc.membership.categories.find(c => c.id === $app.query.category) : null}
+          <span class="chip accent filter-chip" style={getBadgeStyle(selectedCat?.color)}>
             <span>
               カテゴリ: {$app.query.category === null
                 ? '未分類'
@@ -203,7 +212,8 @@
 
         {#if $app.query.tags && $app.query.tags.ids.length > 0}
           {#each $app.query.tags.ids as tagId (tagId)}
-            <span class="chip accent filter-chip">
+            {@const currentTag = $app.doc?.membership.tags.find(t => t.id === tagId)}
+            <span class="chip accent filter-chip" style={getBadgeStyle(currentTag?.color)}>
               <span>
                 タグ: {$app.doc ? displayName($app.doc, tagId) : tagId}
               </span>
@@ -405,7 +415,48 @@
   }
 
   .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
     width: 100%;
+  }
+
+  .search-input-wrapper input[type='search'] {
+    width: 100%;
+    padding-left: 36px;
+    padding-right: 120px;
+  }
+
+  .search-icon-svg {
+    position: absolute;
+    left: var(--space-3);
+    color: var(--text-muted);
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+  }
+
+  .shortcut-hint {
+    position: absolute;
+    right: var(--space-3);
+    font-size: 11px;
+    font-family: var(--font);
+    padding: 2px 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-small);
+    color: var(--text-muted);
+    pointer-events: none;
+    line-height: 1.2;
+  }
+
+  @media (max-width: 767.98px) {
+    .shortcut-hint {
+      display: none;
+    }
+    .search-input-wrapper input[type='search'] {
+      padding-right: var(--space-3);
+    }
   }
 
   .suggestions-list {

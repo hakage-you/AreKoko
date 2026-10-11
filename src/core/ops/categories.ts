@@ -1,6 +1,7 @@
 // カテゴリの操作。詳細設計 8章、付録A.13。
 
 import type { Id, ArekokoDocument, Category } from '../types';
+import { isLabelColor } from '../constants';
 import { OpError, touch, type OpContext, type OpResult } from './common';
 
 export function createCategory(
@@ -161,6 +162,50 @@ export function deleteCategory(
     membership: {
       ...doc.membership,
       items: newItems,
+      categories: newCategories,
+    },
+  };
+
+  return {
+    doc: newDoc,
+    moved: [],
+    created: [],
+  };
+}
+
+export function setCategoryColor(
+  doc: ArekokoDocument,
+  id: Id,
+  color: string | null,
+): OpResult {
+  const index = doc.membership.categories.findIndex(c => c.id === id);
+  if (index === -1) {
+    throw new OpError('notFound', `カテゴリが見つかりません: ${id}`);
+  }
+
+  const current = doc.membership.categories[index]!;
+  const normalizedColor = color ? color.trim() : undefined;
+  if (normalizedColor !== undefined && !isLabelColor(normalizedColor)) {
+    throw new OpError('invalidInput', `色は #rrggbb の形で指定してください: ${normalizedColor}`);
+  }
+  if (current.color === normalizedColor) {
+    return { doc, moved: [], created: [] };
+  }
+
+  const updated: Category = { ...current };
+  if (normalizedColor) {
+    updated.color = normalizedColor;
+  } else {
+    delete updated.color;
+  }
+
+  const newCategories = [...doc.membership.categories];
+  newCategories[index] = updated;
+
+  const newDoc: ArekokoDocument = {
+    ...doc,
+    membership: {
+      ...doc.membership,
       categories: newCategories,
     },
   };

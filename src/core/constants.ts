@@ -18,3 +18,11 @@ export const NAMELESS_NAME = '名前なし';
 
 /** 元に戻すの上限（設計 10章）。 */
 export const MAX_HISTORY = 50;
+
+/**
+ * カテゴリ・タグの色として受け付ける形（#rrggbb）。ファイルの値は画面のスタイルに入るので、
+ * この形でないもの（url(...) など、外へ読みに行く値）は使わず既定の色で出す（原則7、設計 7.6）。
+ */
+export function isLabelColor(color: unknown): color is string {
+  return typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color);
+}

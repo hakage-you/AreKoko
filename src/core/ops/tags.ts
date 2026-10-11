@@ -1,6 +1,7 @@
 // タグの操作。詳細設計 8章、付録A.13。
 
 import type { Id, ArekokoDocument, Tag } from '../types';
+import { isLabelColor } from '../constants';
 import { OpError, touch, type OpContext, type OpResult } from './common';
 
 export function createTag(
@@ -90,6 +91,50 @@ export function deleteTag(
     membership: {
       ...doc.membership,
       items: newItems,
+      tags: newTags,
+    },
+  };
+
+  return {
+    doc: newDoc,
+    moved: [],
+    created: [],
+  };
+}
+
+export function setTagColor(
+  doc: ArekokoDocument,
+  id: Id,
+  color: string | null,
+): OpResult {
+  const index = doc.membership.tags.findIndex(t => t.id === id);
+  if (index === -1) {
+    throw new OpError('notFound', `タグが見つかりません: ${id}`);
+  }
+
+  const current = doc.membership.tags[index]!;
+  const normalizedColor = color ? color.trim() : undefined;
+  if (normalizedColor !== undefined && !isLabelColor(normalizedColor)) {
+    throw new OpError('invalidInput', `色は #rrggbb の形で指定してください: ${normalizedColor}`);
+  }
+  if (current.color === normalizedColor) {
+    return { doc, moved: [], created: [] };
+  }
+
+  const updated: Tag = { ...current };
+  if (normalizedColor) {
+    updated.color = normalizedColor;
+  } else {
+    delete updated.color;
+  }
+
+  const newTags = [...doc.membership.tags];
+  newTags[index] = updated;
+
+  const newDoc: ArekokoDocument = {
+    ...doc,
+    membership: {
+      ...doc.membership,
       tags: newTags,
     },
   };

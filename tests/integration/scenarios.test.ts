@@ -8,7 +8,7 @@ import { makeApp, expectHealthy, MemoryFile, type AppHarness } from './harness';
 import type { ArekokoDocument, Id } from '../../src/core/types';
 import { NIL_ID } from '../../src/core/constants';
 import { serializeDocument } from '../../src/core/serialize';
-import { sampleDocument } from '../../src/app/memoryDeps';
+import { scenarioDocument } from '../../src/app/memoryDeps';
 import { splitAt, splitEven } from '../../src/core/ops/areas';
 import { setAreaLabel } from '../../src/core/ops/kuukans';
 import { setItemDrawing } from '../../src/core/ops/itemDrawings';
@@ -23,7 +23,7 @@ import { shapeCenter } from '../../src/geometry/shape';
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function sampleFile(): MemoryFile {
-  return new MemoryFile({ name: '見本.json', text: serializeDocument(sampleDocument()) });
+  return new MemoryFile({ name: '見本.json', text: serializeDocument(scenarioDocument()) });
 }
 function item(doc: ArekokoDocument, name: string) {
   const found = doc.membership.items.filter(i => i.name === name);
@@ -317,7 +317,7 @@ describe('SC-05 複製した下書きで作り直し、元と置き換える', (
 });
 
 describe('SC-06 壊れたファイルを開いて、修復を承認する', () => {
-  const broken = sampleDocument();
+  const broken = scenarioDocument();
   broken.membership.items.push(
     { id: '01900000-0000-7000-8000-00000000a001', name: '迷子の傘', place: '01900000-0000-7000-8000-00000000a999', category: null, tags: [], updatedAt: '2026-10-01T00:00:00.000Z' },
     { id: 'new:メモ帳', name: 'メモ帳', place: NIL_ID, category: null, tags: [], updatedAt: '2026-10-01T00:00:00.000Z' },

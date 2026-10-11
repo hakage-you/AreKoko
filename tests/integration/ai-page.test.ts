@@ -11,6 +11,7 @@ import { makeApp, MemoryFile, expectHealthy } from './harness';
 import page from '../../public/ai.md?raw';
 import llms from '../../public/llms.txt?raw';
 import schemaText from '../../public/schema.json?raw';
+import appSchemaText from '../../src/core/schema.json?raw';
 
 function example(marker: 'before' | 'after'): string {
   const at = page.indexOf(`<!-- example:${marker} -->`);
@@ -81,5 +82,19 @@ describe('結合試験: AI向けの説明ページ (段階7)', () => {
     expect(JSON.parse(schemaText).$schema).toContain('json-schema.org');
     // 説明ページも schema.json を指す
     expect(page).toContain('](./schema.json)');
+  });
+
+  it('アプリの検査に使う schema.json（src/core）は、説明ページが指す public/schema.json と同じ中身（設計 6.8：説明と検査をずらさない）', () => {
+    expect(JSON.parse(appSchemaText)).toEqual(JSON.parse(schemaText));
+  });
+
+  it('説明ページの表は、schema.json のカテゴリ・タグの項目をすべて載せる', () => {
+    const schema = JSON.parse(schemaText) as { $defs: Record<string, { properties?: Record<string, unknown> }> };
+    for (const def of ['category', 'tag']) {
+      for (const key of Object.keys(schema.$defs[def]?.properties ?? {})) {
+        if (key === 'notices') continue; // 修復メモは別の節
+        expect(page, `${def}.${key}`).toContain(`| \`${key}\` |`);
+      }
+    }
   });
 });

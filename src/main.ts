@@ -19,6 +19,9 @@ async function chooseDeps(): Promise<{ deps: AppDeps; onStore?: (store: AppStore
 void chooseDeps().then(({ deps, onStore }) => {
   const store = new AppStore(deps);
   onStore?.(store);
+  if (import.meta.env.DEV) {
+    (window as unknown as { __AREKOKO_APP__?: AppStore }).__AREKOKO_APP__ = store;
+  }
   void store.init();
   mount(App, { target, props: { store } });
 });

@@ -5,7 +5,8 @@
   import { getIndexes } from '../../core/indexes';
   import { isEmptyQuery } from '../../search/search';
   import { drawingOffset, offsetText } from '../../view/model';
-  import type { Item } from '../../core/types';
+import type { Item } from '../../core/types';
+  import { getBadgeStyle } from '../color';
 
   interface Props {
     items: Item[];
@@ -24,16 +25,64 @@
   let scrollTop = $state(0);
   let containerHeight = $state(600);
 
-  const totalRows = $derived(rows.length);
+  // グループの折りたたみ状態（キーの集合）
+  let collapsedKeys = $state<Set<string>>(new Set());
+
+  // グループ折りたたみを反映した行リスト
+  const displayRows = $derived.by(() => {
+    if (collapsedKeys.size === 0) return rows;
+    const result: typeof rows = [];
+    let skippingDepth: number | null = null;
+
+    for (const row of rows) {
+      if (skippingDepth !== null) {
+        if (row.depth > skippingDepth) {
+          continue;
+        } else {
+          skippingDepth = null;
+        }
+      }
+      result.push(row);
+      if (row.kind === 'group' && collapsedKeys.has(row.key)) {
+        skippingDepth = row.depth;
+      }
+    }
+    return result;
+  });
+
+  const totalRows = $derived(displayRows.length);
   const startIndex = $derived(
     Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER)
   );
   const endIndex = $derived(
     Math.min(totalRows, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER)
   );
-  const visibleRows = $derived(rows.slice(startIndex, endIndex));
+  const visibleRows = $derived(displayRows.slice(startIndex, endIndex));
   const topPadding = $derived(startIndex * ROW_HEIGHT);
   const bottomPadding = $derived(Math.max(0, (totalRows - endIndex) * ROW_HEIGHT));
+
+  const allGroups = $derived(rows.filter((r): r is Extract<typeof r, { kind: 'group' }> => r.kind === 'group'));
+  const allGroupsCollapsed = $derived(
+    allGroups.length > 0 && allGroups.every((g) => collapsedKeys.has(g.key))
+  );
+
+  function toggleGroup(key: string): void {
+    const next = new Set(collapsedKeys);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    collapsedKeys = next;
+  }
+
+  function toggleAllGroups(): void {
+    if (allGroupsCollapsed) {
+      collapsedKeys = new Set();
+    } else {
+      collapsedKeys = new Set(allGroups.map((g) => g.key));
+    }
+  }
 
   const allVisibleSelected = $derived(
     items.length > 0 && items.every((it) => $app.selection.has(it.id))
@@ -108,7 +157,18 @@
       <div class="col-place header-cell">置き場</div>
       <div class="col-category header-cell">カテゴリ</div>
       <div class="col-tags header-cell">タグ</div>
-      <div class="col-actions header-cell" aria-hidden="true"></div>
+      <div class="col-actions header-cell" aria-hidden="true">
+        {#if $app.grouping !== 'none' && allGroups.length > 0}
+          <button
+            type="button"
+            class="group-toggle-all-btn ghost small"
+            onclick={toggleAllGroups}
+            title={allGroupsCollapsed ? 'すべてのグループを展開' : 'すべてのグループを折りたたむ'}
+          >
+            {allGroupsCollapsed ? 'すべて展開' : 'すべて折畳'}
+          </button>
+        {/if}
+      </div>
     </div>
 
     <div
@@ -123,11 +183,24 @@
 
       {#each visibleRows as row (row.key)}
         {#if row.kind === 'group'}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_interactive_supports_focus -->
           <div
             class="row group-row"
-            role="row"
+            role="button"
+            tabindex="0"
+            onclick={() => toggleGroup(row.key)}
+            onkeydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleGroup(row.key);
+              }
+            }}
             style="padding-left: calc(var(--space-4) + {row.depth * 20}px);"
           >
+            <span class="group-toggle-icon" class:is-collapsed={collapsedKeys.has(row.key)}>
+              ▶
+            </span>
             <span class="group-label">{row.label}</span>
             <span class="group-count muted">（{row.count}）</span>
           </div>
@@ -187,18 +260,22 @@
             </div>
 
             <div class="col-category">
-              <span class="truncate-text" class:muted={row.item.category === null}>
-                {row.item.category !== null && $app.doc
-                  ? displayName($app.doc, row.item.category)
-                  : '未分類'}
-              </span>
+              {#if row.item.category !== null && $app.doc}
+                {@const cat = $app.doc.membership.categories.find((c) => c.id === row.item.category)}
+                <span class="chip small truncate-text" style={getBadgeStyle(cat?.color)}>
+                  {cat?.name ?? '未分類'}
+                </span>
+              {:else}
+                <span class="truncate-text muted">未分類</span>
+              {/if}
             </div>
 
             <div class="col-tags">
               <div class="tags-container">
                 {#each row.item.tags as tagId (tagId)}
-                  <span class="chip small">
-                    {$app.doc ? displayName($app.doc, tagId) : tagId}
+                  {@const tag = $app.doc?.membership.tags.find((t) => t.id === tagId)}
+                  <span class="chip small" style={getBadgeStyle(tag?.color)}>
+                    {tag?.name ?? ($app.doc ? displayName($app.doc, tagId) : tagId)}
                   </span>
                 {/each}
               </div>
@@ -303,6 +380,29 @@
     background: var(--surface-2);
     font-weight: 600;
     gap: var(--space-2);
+    cursor: pointer;
+    user-select: none;
+    transition: background var(--duration-fast);
+  }
+
+  .group-row:hover {
+    background: var(--surface-soft, rgba(0, 0, 0, 0.04));
+  }
+
+  .group-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+    transition: transform var(--duration-fast) var(--ease-default);
+    transform: rotate(90deg);
+  }
+
+  .group-toggle-icon.is-collapsed {
+    transform: rotate(0deg);
   }
 
   .group-label {
@@ -311,6 +411,20 @@
 
   .group-count {
     font-size: var(--font-size-small);
+  }
+
+  .group-toggle-all-btn {
+    font-size: 11px;
+    padding: 2px 6px;
+    height: 24px;
+    line-height: 1;
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+  }
+
+  .group-toggle-all-btn:hover {
+    color: var(--text);
+    background: var(--surface-2);
   }
 
   .item-row {
@@ -512,8 +626,13 @@
     }
 
     .col-check {
+      width: 44px;
+      min-width: 44px;
       height: 100%;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .col-place,
@@ -533,7 +652,15 @@
     .col-actions {
       width: auto;
       min-width: auto;
-      gap: var(--space-1);
+      gap: var(--space-2);
+      padding-right: var(--space-2);
+    }
+
+    .view-btn {
+      min-height: 38px;
+      min-width: 44px;
+      padding: 0 var(--space-3);
+      font-size: var(--font-size);
     }
 
     .view-btn-full {

@@ -8,7 +8,7 @@ import { createEmptyDocument } from '../core/document';
 import { serializeDocument } from '../core/serialize';
 import { History } from '../core/history';
 import { OpError } from '../core/ops/common';
-import { displayName, formatPlacePath, kuukanOfPlace } from '../core/places';
+import { displayName, formatPlacePath, kuukanOfPlace, isValidLeafArea } from '../core/places';
 import { getIndexes } from '../core/indexes';
 import { addItem, deleteItems, planDeleteItems } from '../core/ops/items';
 import { planRemoveStorage, removeStorage } from '../core/ops/storage';
@@ -19,10 +19,12 @@ import { describeRelocations } from './impact';
 import { NIL_ID } from '../core/constants';
 import type { OpContext, OpResult } from '../core/ops/common';
 import type { FileBackend, FileStat } from '../file/backend';
+import { MemoryBackend, openDroppedFile as defaultOpenDroppedFile } from '../file/backend';
 import type { SaveStatus, Timers } from '../file/session';
 import { DocumentSession } from '../file/session';
 import type { RecentEntry } from '../file/recent';
-import type { AppSettings } from '../file/settings';
+import type { AppSettings, ThemeMode } from '../file/settings';
+import { sampleDocument } from '../core/sample';
 import type { SearchQuery } from '../search/search';
 import type { Point } from '../core/types';
 import type { Relocation } from '../core/ops/common';
@@ -37,6 +39,7 @@ import {
   setDraftOutline,
 } from '../editor/draft';
 import { type ConfirmMode, planConfirm, confirmDraft as confirmDraftOp } from '../editor/confirm';
+import { autoAssignItemPlaces } from '../editor/autoAssign';
 
 export type Screen = 'start' | 'kuukans' | 'view' | 'search' | 'editor' | 'manage' | 'settings';
 
@@ -71,6 +74,8 @@ export type ConfirmDialog = {
   confirmLabel: string;
   danger: boolean;
   onConfirm: () => void;
+  /** もう1つの選び方（例：「変えずに出る」）。押されたら閉じて呼ぶ。キャンセルは今までどおり何もしない。 */
+  secondary?: { label: string; onSelect: () => void };
 };
 
 export type Dialog =
@@ -99,6 +104,7 @@ export interface AppState {
   selection: ReadonlySet<Id>;
   recent: RecentEntry[];
   supportsOverwrite: boolean;
+  theme: ThemeMode;
   editor: EditorTarget | null;     // screen が 'editor' のときだけ
   view: ViewTarget | null;         // screen が 'view' のとき（と、そこから開いたクウカン編集の間）だけ
   help: HelpTopic | null;          // 開いているヘルプ
@@ -107,6 +113,7 @@ export interface AppState {
 export interface AppDeps {
   pickFileToOpen(): Promise<{ backend: FileBackend; text: string; stat: FileStat } | null>;
   pickFileToSave(suggestedName: string): Promise<FileBackend | null>;
+  openDroppedFile?(dataTransfer: DataTransfer): Promise<{ backend: FileBackend; text: string; stat: FileStat } | null>;
   supportsFileSystemAccess(): boolean;
   listRecent(): Promise<RecentEntry[]>;
   addRecent(backend: FileBackend): Promise<void>;
@@ -155,6 +162,7 @@ export class AppStore {
       selection: new Set(),
       recent: [],
       supportsOverwrite: deps.supportsFileSystemAccess(),
+      theme: 'system',
       editor: null,
       view: null,
       help: null,
@@ -205,6 +213,8 @@ export class AppStore {
 
   async init(): Promise<void> {
     const settings = this.deps.loadSettings();
+    const theme = settings.theme ?? 'system';
+    this.applyTheme(theme);
     let recent: RecentEntry[] = [];
     try {
       recent = await this.deps.listRecent();
@@ -213,6 +223,7 @@ export class AppStore {
     }
     this.updateState({
       autosave: settings.autosave,
+      theme,
       recent,
       supportsOverwrite: this.deps.supportsFileSystemAccess(),
     });
@@ -270,10 +281,30 @@ export class AppStore {
     await this.deps.addRecent(backend);
   }
 
+  async openSampleDocument(): Promise<void> {
+    const doc = sampleDocument();
+    const text = serializeDocument(doc);
+    const backend = new MemoryBackend('見本.json', text, false);
+    const stat: FileStat = { lastModified: Date.now() };
+    await this.processOpenedContent(backend, text, stat);
+  }
+
   async openFile(): Promise<void> {
     const result = await this.deps.pickFileToOpen();
     if (!result) return;
     await this.processOpenedContent(result.backend, result.text, result.stat);
+  }
+
+  async openDroppedFile(dataTransfer: DataTransfer): Promise<void> {
+    try {
+      const result = this.deps.openDroppedFile
+        ? await this.deps.openDroppedFile(dataTransfer)
+        : await defaultOpenDroppedFile(dataTransfer);
+      if (!result) return;
+      await this.processOpenedContent(result.backend, result.text, result.stat);
+    } catch {
+      this.showToast('error', 'ドロップされたファイルを読み込めませんでした');
+    }
   }
 
   async openRecent(entry: RecentEntry): Promise<void> {
@@ -490,7 +521,7 @@ export class AppStore {
     if (!doc.membership.kuukans.some(k => k.id === v.kuukan)) {
       return this._state.screen === 'view' ? { screen: 'kuukans', view: null } : { view: null };
     }
-    const area = v.area !== null && doc.membership.areas.some(a => a.id === v.area && a.kuukan === v.kuukan) ? v.area : null;
+    const area = isValidLeafArea(doc, v.kuukan, v.area) ? v.area : null;
     const focus = v.focus !== null && doc.membership.items.some(it => it.id === v.focus) ? v.focus : null;
     // 描画がなくなったら配置モードを終える
     const placing = v.placing && doc.drawing.kuukans.some(d => d.kuukan === v.kuukan);
@@ -500,6 +531,7 @@ export class AppStore {
 
   confirm(d: Omit<ConfirmDialog, 'kind'>): void {
     const originalOnConfirm = d.onConfirm;
+    const secondary = d.secondary;
     this.updateState({
       dialog: {
         kind: 'confirm',
@@ -508,6 +540,17 @@ export class AppStore {
           this.closeDialog();
           originalOnConfirm();
         },
+        ...(secondary
+          ? {
+              secondary: {
+                label: secondary.label,
+                onSelect: () => {
+                  this.closeDialog();
+                  secondary.onSelect();
+                },
+              },
+            }
+          : {}),
       },
     });
   }
@@ -577,13 +620,31 @@ export class AppStore {
   }
 
   setAutosave(on: boolean): void {
-    this.deps.saveSettings({ autosave: on });
+    const settings = this.deps.loadSettings();
+    this.deps.saveSettings({ ...settings, autosave: on });
     this.session?.setAutosave(on);
     this.updateState({
       autosave: on,
       saveStatus: this.session?.status ?? this._state.saveStatus,
       dirty: this.session?.dirty ?? this._state.dirty,
     });
+  }
+
+  setTheme(theme: ThemeMode): void {
+    const settings = this.deps.loadSettings();
+    this.deps.saveSettings({ ...settings, theme });
+    this.applyTheme(theme);
+    this.updateState({ theme });
+  }
+
+  private applyTheme(theme: ThemeMode): void {
+    if (typeof document !== 'undefined') {
+      if (theme === 'system') {
+        delete document.documentElement.dataset.theme;
+      } else {
+        document.documentElement.dataset.theme = theme;
+      }
+    }
   }
 
   async resolveConflict(choice: 'reload' | 'overwrite' | 'saveAs'): Promise<void> {
@@ -709,10 +770,12 @@ export class AppStore {
   }
 
   setScreen(s: Exclude<Screen, 'start' | 'editor'>): void {
-    if (this._state.editor?.kind === 'draft') {
+    const ed = this._state.editor;
+    if (ed?.kind === 'draft') {
       this.confirmDiscardDraft(() => this.doSetScreen(s));
       return;
     }
+    if (ed?.kind === 'kuukan' && this.askRelocateBeforeLeaving(ed.kuukan, () => this.doSetScreen(s))) return;
     this.doSetScreen(s);
   }
 
@@ -778,7 +841,7 @@ export class AppStore {
   private doOpenView(kuukan: Id, opts: { area?: Id | null; quick?: string; focus?: Id | null }): void {
     const doc = this._state.doc;
     if (!doc || !doc.membership.kuukans.some(k => k.id === kuukan)) return;
-    const area = opts.area != null && doc.membership.areas.some(a => a.id === opts.area && a.kuukan === kuukan) ? opts.area : null;
+    const area = opts.area != null && isValidLeafArea(doc, kuukan, opts.area) ? opts.area : null;
     const same = this._state.screen === 'view' && this._state.view?.kuukan === kuukan;
     if (!same) {
       this.history.clear();
@@ -796,7 +859,9 @@ export class AppStore {
 
   selectViewArea(area: Id | null): void {
     const v = this._state.view;
+    const doc = this._state.doc;
     if (!v || v.area === area) return;
+    if (area !== null && doc && !isValidLeafArea(doc, v.kuukan, area)) return;
     this.updateState({ view: { ...v, area } });
   }
 
@@ -806,13 +871,15 @@ export class AppStore {
     this.updateState({ view: { ...v, quick: text, focus: null } });
   }
 
-  /** 配置モードの入り切り。履歴は消さない（設計 10章）。描画のないクウカンでは入らない。 */
   setPlacing(on: boolean): void {
     const v = this._state.view;
     const doc = this._state.doc;
     if (!v || !doc || v.placing === on) return;
     if (on && !doc.drawing.kuukans.some(d => d.kuukan === v.kuukan)) return;
-    this.updateState({ view: { ...v, placing: on } });
+    this.updateState({
+      view: { ...v, placing: on },
+      ...(on ? { detail: null } : {}),
+    });
   }
 
   /** 簡易検索の続きをサガシモノで（設計 8.8：文字と置き場を引き継ぐ）。 */
@@ -919,9 +986,35 @@ export class AppStore {
     });
   }
 
-  /** クウカン編集から、開いた元の画面へ戻る（下書きなら捨てるか確認する）。 */
+  /** クウカン編集から、開いた元の画面へ戻る（下書きなら捨てるか確認し、確定したクウカンならずれのモノの置き場を変えるか聞く。setScreen と同じ）。 */
   leaveEditor(): void {
     this.setScreen(this.editorReturnScreen);
+  }
+
+  /**
+   * 確定したクウカンの編集を出る前に、描画とずれているモノがあれば、描画に合わせて置き場を変えるかを聞く。聞いたら true。
+   * 所属は描画から自動では変わらない（設計 3章 原則2）ので、利用者が選んだときだけ変える。
+   * 「編集を終了」でも上のタブでも、どの出方でも聞く（TRS 付録B I-15）。
+   */
+  private askRelocateBeforeLeaving(kuukan: Id, leave: () => void): boolean {
+    const doc = this._state.doc;
+    if (!doc) return false;
+    const res = autoAssignItemPlaces(doc, kuukan);
+    if (res.relocations.length === 0) return false;
+    const total = res.relocations.reduce((sum, r) => sum + r.items.length, 0);
+    this.confirm({
+      title: '描画に合わせて置き場を変えますか？',
+      message: `描画の位置と置き場がずれているモノが ${total}件あります。描画に合わせて置き場を変えると、次のように移ります。編集を出た後は「元に戻す」で戻せません。`,
+      details: describeRelocations(doc, res.relocations),
+      confirmLabel: '置き場を変えて出る',
+      danger: false,
+      secondary: { label: '変えずに出る', onSelect: leave },
+      onConfirm: () => {
+        this.apply(() => ({ doc: res.doc, moved: res.relocations.flatMap(r => r.items), created: [] }));
+        leave();
+      },
+    });
+    return true;
   }
 
   /** 下書きの文書に操作をかける。OpError は toast。 */
@@ -1006,21 +1099,51 @@ export class AppStore {
 
   // ---- 利用者の操作（画面の判断をここに集める。詳細設計(シナリオ) 1章） ----
 
-  /** クウカンビューの「＋モノを追加」。置き場は選んでいるエリア、なければ開いているクウカン（V2）。 */
-  addItemInView(name: string): Id | null {
+  /**
+   * クウカンビューの「＋モノを追加」。置き場は選んでいるエリア、なければ開いているクウカン（V2）。
+   * place を渡すと、その置き場に足す（作るときに置き場を選んだとき）。
+   */
+  addItemInView(name: string, place?: Id): Id | null {
     const v = this._state.view;
     const trimmed = name.trim();
     if (!v || !trimmed) return null;
-    const place = v.area ?? v.kuukan;
-    const created = this.apply((doc, ctx) => addItem(doc, { name: trimmed, place }, ctx))?.created[0];
+    const target = place ?? v.area ?? v.kuukan;
+    const created = this.apply((doc, ctx) => addItem(doc, { name: trimmed, place: target }, ctx))?.created[0];
     if (created === undefined) return null;
     this.showDetail(created);
     return created;
   }
 
-  /** 1件の削除。確認しない（設計 8.4。元に戻すで補う）。 */
-  deleteItem(id: Id): void {
-    this.apply((doc, ctx) => deleteItems(doc, [id], ctx));
+  /**
+   * 1件の削除。ふつうのモノは確認しない（設計 8.4。元に戻すで補う）。
+   * 収納のモノは、中のクウカンがなくなり中のモノが移るので、影響を見せて確認する（設計 7.5、TRS 付録B I-17）。
+   * 消したら `onDone` を呼ぶ。
+   */
+  requestDeleteItem(id: Id, onDone?: () => void): void {
+    const doc = this._state.doc;
+    const it = doc?.membership.items.find(i => i.id === id);
+    if (!doc || !it) return;
+    const remove = () => {
+      this.apply((d, ctx) => deleteItems(d, [id], ctx));
+      onDone?.();
+    };
+    if (!doc.membership.kuukans.some(k => k.owner === id)) {
+      remove();
+      return;
+    }
+    const relocations = this.tryPlan(() => planDeleteItems(doc, [id]));
+    if (!relocations) return;
+    const total = relocations.reduce((sum, r) => sum + r.items.length, 0);
+    this.confirm({
+      title: 'モノの削除',
+      message: total > 0
+        ? `「${it.name}」は収納です。削除すると中のクウカンがなくなり、中のモノ ${total}件は「${formatPlacePath(doc, it.place)}」へ移ります。`
+        : `「${it.name}」は収納です。削除すると中のクウカンがなくなります。`,
+      details: describeRelocations(doc, relocations),
+      confirmLabel: '削除する',
+      danger: true,
+      onConfirm: remove,
+    });
   }
 
   /** 複数選択のまとめて削除。件数と影響を見せて確認する（設計 8.4）。 */
@@ -1101,9 +1224,9 @@ export class AppStore {
 
   /**
    * 仕切りの線を消す。確定したクウカンなら影響を見せて確認し、下書きなら確認せずに消す（詳細設計 段階5 8.4）。
-   * from は、エリアの欄から消すか、選んだ線から消すか（確認の文言だけが違う）。
+   * from は、エリアの欄から消すか、選んだ線から消すか（確認の文言だけが違う）。message を渡すと確認の本文をそれにする（どの線を消してどこへ統合されるか）。
    */
-  requestDeleteLine(node: Id, lineIndex: number, from: 'area' | 'line', onDone?: () => void): void {
+  requestDeleteLine(node: Id, lineIndex: number, from: 'area' | 'line', onDone?: () => void, message?: string): void {
     const ed = this._state.editor;
     if (!ed) return;
     const op = (d: ArekokoDocument, ctx: OpContext) => deleteLine(d, node, lineIndex, ctx);
@@ -1118,12 +1241,12 @@ export class AppStore {
     const isKuukan = doc.membership.kuukans.some((k) => k.id === node);
     this.confirm({
       title: from === 'area' ? '仕切りの削除' : '仕切りの線の削除',
-      message:
+      message: message ?? (
         from === 'area'
           ? isKuukan
             ? 'クウカン全体を分けている仕切りを削除します。'
             : 'このエリアを分けている仕切りを削除します。'
-          : '選択した仕切りの線を削除します。',
+          : '選択した仕切りの線を削除します。'),
       details: describeRelocations(doc, plan.relocations),
       confirmLabel: '削除する',
       danger: true,

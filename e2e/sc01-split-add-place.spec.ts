@@ -15,6 +15,7 @@ test('SC-01 部屋をエリアに分け、片方にモノを追加して図に�
   });
 
   await test.step('SC-01-2 「書斎」を作る → 長方形の外形の下書き。文書はまだ変わらない', async () => {
+    await page.getByRole('button', { name: /クウカンを追加/ }).click();
     await page.getByRole('textbox', { name: 'クウカンの名前' }).fill('書斎');
     await page.getByRole('button', { name: '作る', exact: true }).click();
     const s = await snapshot(page);
@@ -53,7 +54,7 @@ test('SC-01 部屋をエリアに分け、片方にモノを追加して図に�
   });
 
   await test.step('SC-01-5 編集を出て、一覧で書斎を開く → 書斎のクウカンビュー「書斎 のモノ 0件」', async () => {
-    await page.getByRole('button', { name: /戻る/ }).click();
+    await page.getByRole('button', { name: /編集を終了|戻る/ }).click();
     expect((await snapshot(page)).screen).toBe('kuukans');
     await page.getByRole('button', { name: '書斎', exact: true }).click();
     const s = await snapshot(page);
@@ -70,11 +71,16 @@ test('SC-01 部屋をエリアに分け、片方にモノを追加して図に�
     await expect(page.getByText('エリア2 のモノ 0件')).toBeVisible();
   });
 
-  await test.step('SC-01-7 「＋モノを追加」で「ノートPC」 → 置き場はエリア2、描画なし、詳細が開く', async () => {
+  await test.step('SC-01-7 「＋モノを追加」で「ノートPC」 → 置き場と配置を選ぶ画面（置き場はエリア2）。「あとで配置する」で作ると、置き場はエリア2、描画なし、詳細が開く', async () => {
     await page.getByRole('button', { name: '＋モノを追加' }).click();
     const input = page.getByRole('textbox', { name: 'モノの名前', exact: true });
     await input.fill('ノートPC');
     await input.press('Enter');
+    const modal = page.getByRole('dialog', { name: 'モノの追加' });
+    await expect(modal).toBeVisible();
+    expect((await snapshot(page)).doc!.membership.items.some(i => i.name === 'ノートPC')).toBe(false);
+    await modal.getByRole('button', { name: 'あとで配置する' }).click();
+    await modal.getByRole('button', { name: '作成' }).click();
     const s = await snapshot(page);
     const pc = findItem(s.doc!, 'ノートPC');
     const k = findKuukan(s.doc!, '書斎');
@@ -87,11 +93,11 @@ test('SC-01 部屋をエリアに分け、片方にモノを追加して図に�
   await test.step('SC-01-8 配置モードで、ノートPC に長方形の描画を付ける → 中心は右のエリアの中。置き場と更新日時は変わらず、ずれの印なし', async () => {
     before = await currentDoc(page);
     await page.getByRole('button', { name: '詳細を閉じる' }).click();
-    await page.getByRole('button', { name: '配置モード' }).click();
+    await page.getByRole('button', { name: 'モノを配置' }).click();
     expect((await snapshot(page)).view?.placing).toBe(true);
     const row = page.getByRole('listitem').filter({ hasText: 'ノートPC' });
-    await row.getByRole('button', { name: '描画を付ける', exact: true }).click();
-    await page.getByRole('button', { name: '長方形で描く' }).click();
+    await row.getByRole('button', { name: '配置する', exact: true }).click();
+    await page.getByRole('toolbar', { name: '配置モードの道具' }).getByRole('button', { name: '四角で配置' }).click();
     await dragCanvas(page, [6000, 3000], [9000, 7000]);
 
     const doc = await currentDoc(page);

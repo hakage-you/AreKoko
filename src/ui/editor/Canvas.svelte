@@ -20,9 +20,12 @@
     lineSegments,
     hitLine,
     hitMarker,
+    describePartitionLine,
+    describeLineRemoval,
+    type PartitionLineInfo,
   } from '../../editor/view';
   import { moveLine, splitAt } from '../../core/ops/areas';
-  import { addMarker, moveMarkers, updateMarker } from '../../core/ops/markers';
+  import { addMarker, moveMarkers, updateMarker, deleteMarkers } from '../../core/ops/markers';
   import { moveEdge, addStep, edgeAt } from '../../editor/outline';
 
   const app = getApp();
@@ -36,6 +39,11 @@
 
   const doc = $derived(editorDoc($app));
   const kuukanId = $derived(editorKuukan($app));
+
+  const selectedLineInfo = $derived.by((): PartitionLineInfo | null => {
+    if (!doc || !ui.selectedLine) return null;
+    return describePartitionLine(doc, ui.selectedLine.node, ui.selectedLine.lineIndex);
+  });
 
   const kuukanDrawing = $derived.by(() => {
     if (!doc || !kuukanId) return null;
@@ -72,7 +80,7 @@
     return null;
   });
 
-  // 葉のエリア一覧
+  // 分けていないエリア一覧
   const leafNodes = $derived.by((): Id[] => {
     if (!kuukanGeometry) return [];
     const { tree } = kuukanGeometry;
@@ -91,6 +99,22 @@
   const markers = $derived.by((): Marker[] => {
     if (!doc || !kuukanId) return [];
     return doc.drawing.markers.filter((m) => m.kuukan === kuukanId);
+  });
+
+  // ゴースト表示するモノ（配置済みのモノ）
+  const ghostItems = $derived.by(() => {
+    if (!doc || !kuukanId) return [];
+    const areaIds = new Set(doc.membership.areas.filter((a) => a.kuukan === kuukanId).map((a) => a.id));
+    const validPlaces = new Set<Id>([kuukanId, ...areaIds]);
+    const kuukanItems = doc.membership.items.filter((i) => validPlaces.has(i.place));
+    const drawingMap = new Map(doc.drawing.items.map((d) => [d.item, d]));
+
+    return kuukanItems
+      .filter((i) => drawingMap.has(i.id))
+      .map((i) => ({
+        item: i,
+        drawing: drawingMap.get(i.id)!,
+      }));
   });
 
   // 仕切り線一覧
@@ -141,6 +165,36 @@
     return list;
   });
 
+  interface ResizeHandle {
+    index: number;
+    cx: number;
+    cy: number;
+    isHoriz: boolean;
+  }
+
+  const outlineResizeHandles = $derived.by((): ResizeHandle[] => {
+    const isDraft = $app.editor?.kind === 'draft';
+    if (!isDraft || !kuukanDrawing || kuukanDrawing.outline.length === 0) return [];
+    if (ui.tool !== 'select') return [];
+    const pts = kuukanDrawing.outline;
+    const n = pts.length;
+    const handles: ResizeHandle[] = [];
+    for (let i = 0; i < n; i++) {
+      const p1 = pts[i]!;
+      const p2 = pts[(i + 1) % n]!;
+      const isHoriz = p1[1] === p2[1];
+      const midX = (p1[0] + p2[0]) / 2;
+      const midY = (p1[1] + p2[1]) / 2;
+      handles.push({
+        index: i,
+        cx: midX * aspect,
+        cy: midY,
+        isHoriz,
+      });
+    }
+    return handles;
+  });
+
   // ResizeObserver でコンテナサイズ測定
   $effect(() => {
     if (!containerEl) return;
@@ -187,6 +241,72 @@
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       el.removeEventListener('wheel', onWheel);
+    };
+  });
+
+  function isEditableElement(el: Element | null): boolean {
+    if (!el) return false;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    if ((el as HTMLElement).isContentEditable) return true;
+    return false;
+  }
+
+  // キーボードショートカット（Escapeで選択解除・ツール復帰、Delete/Backspaceで削除）
+  $effect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditableElement(document.activeElement)) return;
+
+      if (e.key === 'Escape') {
+        let handled = false;
+        if (ui.selectedMarkers.length > 0) {
+          ui.selectedMarkers = [];
+          handled = true;
+        }
+        if (ui.selectedLine !== null) {
+          ui.selectedLine = null;
+          handled = true;
+        }
+        if (ui.selectedArea !== null) {
+          ui.selectedArea = null;
+          handled = true;
+        }
+        if (ui.tool !== 'select') {
+          ui.tool = 'select';
+          handled = true;
+        }
+        if (handled) {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (ui.selectedMarkers.length > 0) {
+          e.preventDefault();
+          const ids = [...ui.selectedMarkers];
+          applyToEditor(app, $app, (d) => deleteMarkers(d, ids));
+          ui.selectedMarkers = [];
+          return;
+        }
+
+        if (ui.selectedLine && doc) {
+          e.preventDefault();
+          const { node, lineIndex } = ui.selectedLine;
+          // 横の欄の「消す」と同じ道を通す（確定したクウカンなら影響と移るモノの名前を見せて確認し、下書きなら確認しない。
+          // TRS 付録B I-13・I-18）。確認の文は横の欄と同じ
+          const info = selectedLineInfo;
+          app.requestDeleteLine(node, lineIndex, 'line', () => {
+            ui.selectedLine = null;
+          }, info ? describeLineRemoval(info) : undefined);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
     };
   });
 
@@ -395,6 +515,40 @@
     const isDraft = $app.editor?.kind === 'draft';
 
     if (ui.tool === 'select') {
+      // 0a. 選択中の単一マーカーの辺が押された場合、マーカー辺ドラッグ
+      if (ui.selectedMarkers.length === 1) {
+        const selMId = ui.selectedMarkers[0]!;
+        const targetMarker = markers.find((m) => m.id === selMId);
+        if (targetMarker && (targetMarker.shape.type === 'rect' || targetMarker.shape.type === 'poly')) {
+          const pts = getMarkerPoints(targetMarker);
+          if (pts) {
+            const pLocal = toMarkerLocal(pRatio, targetMarker);
+            const edgeIndex = edgeAt(pts, pLocal, tol12);
+            if (edgeIndex !== null) {
+              activeDrag = {
+                kind: 'markerEdge',
+                markerId: selMId,
+                edgeIndex,
+                startP: pLocal,
+                points: pts,
+              };
+              return;
+            }
+          }
+        }
+      }
+
+      // 0b. 下書き時、外形の辺（ツマミ）が押された場合、外形辺ドラッグ
+      if (isDraft && kuukanDrawing.outline.length > 0) {
+        const edgeIndex = edgeAt(kuukanDrawing.outline, pRatio, tol12);
+        const hitMId = hitMarker(markers, pRatio, tol12);
+        const lineHit = regions && kuukanGeometry ? hitLine(regions, kuukanGeometry.partitions, pRatio, tol8, kuukanGeometry.tree) : null;
+        if (edgeIndex !== null && !hitMId && !lineHit) {
+          activeDrag = { kind: 'outlineEdge', edgeIndex, startP: pRatio };
+          return;
+        }
+      }
+
       // 1. マーカー判定
       const hitMId = hitMarker(markers, pRatio, tol12);
       if (hitMId) {
@@ -435,7 +589,7 @@
 
       // 2. 仕切り線判定
       if (regions && kuukanGeometry) {
-        const lineHit = hitLine(regions, kuukanGeometry.partitions, pRatio, tol8);
+        const lineHit = hitLine(regions, kuukanGeometry.partitions, pRatio, tol8, kuukanGeometry.tree);
         if (lineHit) {
           ui.selectedLine = lineHit;
           ui.selectedArea = null;
@@ -1037,6 +1191,20 @@
               vector-effect="non-scaling-stroke"
             />
           {/if}
+
+          <!-- 選択された仕切り線で分断されているエリアの強調オーバーレイ -->
+          {#if selectedLineInfo && regions}
+            {#each selectedLineInfo.allRemovedAreas as aId}
+              {@const aPoly = regions.get(aId)}
+              {#if aPoly}
+                <polygon
+                  points={aPoly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                  class="line-affected-area"
+                  vector-effect="non-scaling-stroke"
+                />
+              {/if}
+            {/each}
+          {/if}
         {/if}
       </g>
 
@@ -1047,13 +1215,113 @@
           class="kuukan-outline"
           vector-effect="non-scaling-stroke"
         />
+        {#if outlineResizeHandles.length > 0}
+          <g class="outline-handles-layer">
+            {#each outlineResizeHandles as h (h.index)}
+              {@const hw = (h.isHoriz ? 18 : 6) / ui.view.scale}
+              {@const hh = (h.isHoriz ? 6 : 18) / ui.view.scale}
+              <rect
+                x={h.cx - hw / 2}
+                y={h.cy - hh / 2}
+                width={hw}
+                height={hh}
+                rx={3 / ui.view.scale}
+                ry={3 / ui.view.scale}
+                class="edge-resize-handle"
+                vector-effect="non-scaling-stroke"
+              />
+            {/each}
+          </g>
+        {/if}
       </g>
+
+      <!-- 3.5. モノのゴースト描画（配置済みモノの参考表示） -->
+      {#if ghostItems.length > 0}
+        <g class="ghost-items-layer" aria-hidden="true">
+          {#each ghostItems as { item, drawing }}
+            {#if drawing.shape.type === 'point'}
+              {@const [gx, gy] = drawing.shape.at}
+              <circle
+                cx={gx * aspect}
+                cy={gy}
+                r={6 / ui.view.scale}
+                class="ghost-item-point"
+                vector-effect="non-scaling-stroke"
+              />
+              <text
+                x={gx * aspect}
+                y={gy + 13 / ui.view.scale}
+                class="ghost-item-label"
+                text-anchor="middle"
+                dominant-baseline="central"
+              >
+                {item.name}
+              </text>
+            {:else if drawing.shape.type === 'rect'}
+              {@const { x, y, w, h } = drawing.shape}
+              {@const cx = (x + w / 2) * aspect}
+              {@const cy = y + h / 2}
+              {@const rotDeg = (drawing.rotation ?? 0) * 45}
+              <g transform={rotDeg !== 0 ? `rotate(${rotDeg}, ${cx}, ${cy})` : undefined}>
+                <rect
+                  x={x * aspect}
+                  y={y}
+                  width={w * aspect}
+                  height={h}
+                  class="ghost-item-rect"
+                  vector-effect="non-scaling-stroke"
+                />
+                <text
+                  x={cx}
+                  y={cy}
+                  class="ghost-item-label"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                >
+                  {item.name}
+                </text>
+              </g>
+            {:else if drawing.shape.type === 'poly'}
+              {@const center = shapeCenter(drawing.shape)}
+              {@const cx = center[0] * aspect}
+              {@const cy = center[1]}
+              {@const rotDeg = (drawing.rotation ?? 0) * 45}
+              <g transform={rotDeg !== 0 ? `rotate(${rotDeg}, ${cx}, ${cy})` : undefined}>
+                <polygon
+                  points={drawing.shape.points.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                  class="ghost-item-poly"
+                  vector-effect="non-scaling-stroke"
+                />
+                <text
+                  x={cx}
+                  y={cy}
+                  class="ghost-item-label"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                >
+                  {item.name}
+                </text>
+              </g>
+            {/if}
+          {/each}
+        </g>
+      {/if}
 
       <!-- 4. 仕切りの線 -->
       <g class="partitions-layer">
         {#each displayedLineSegments as seg}
           {@const isLineSelected =
             ui.selectedLine?.node === seg.node && ui.selectedLine?.lineIndex === seg.lineIndex}
+          {#if isLineSelected}
+            <line
+              x1={seg.from[0] * aspect}
+              y1={seg.from[1]}
+              x2={seg.to[0] * aspect}
+              y2={seg.to[1]}
+              class="partition-line-glow"
+              vector-effect="non-scaling-stroke"
+            />
+          {/if}
           <line
             x1={seg.from[0] * aspect}
             y1={seg.from[1]}
@@ -1113,6 +1381,29 @@
               >
                 {m.name}
               </text>
+              {#if isMarkerSelected && ui.selectedMarkers.length === 1 && ui.tool === 'select'}
+                {@const mPts = getMarkerPoints(m)}
+                {#if mPts}
+                  {#each mPts as p1, i}
+                    {@const p2 = mPts[(i + 1) % mPts.length]!}
+                    {@const isHoriz = p1[1] === p2[1]}
+                    {@const midX = ((p1[0] + p2[0]) / 2) * aspect}
+                    {@const midY = (p1[1] + p2[1]) / 2}
+                    {@const hw = (isHoriz ? 16 : 6) / ui.view.scale}
+                    {@const hh = (isHoriz ? 6 : 16) / ui.view.scale}
+                    <rect
+                      x={midX - hw / 2}
+                      y={midY - hh / 2}
+                      width={hw}
+                      height={hh}
+                      rx={3 / ui.view.scale}
+                      ry={3 / ui.view.scale}
+                      class="edge-resize-handle marker-handle"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  {/each}
+                {/if}
+              {/if}
             </g>
           {:else if m.shape.type === 'poly'}
             {@const center = shapeCenter(m.shape)}
@@ -1135,6 +1426,26 @@
               >
                 {m.name}
               </text>
+              {#if isMarkerSelected && ui.selectedMarkers.length === 1 && ui.tool === 'select'}
+                {#each m.shape.points as p1, i}
+                  {@const p2 = m.shape.points[(i + 1) % m.shape.points.length]!}
+                  {@const isHoriz = p1[1] === p2[1]}
+                  {@const midX = ((p1[0] + p2[0]) / 2) * aspect}
+                  {@const midY = (p1[1] + p2[1]) / 2}
+                  {@const hw = (isHoriz ? 16 : 6) / ui.view.scale}
+                  {@const hh = (isHoriz ? 6 : 16) / ui.view.scale}
+                  <rect
+                    x={midX - hw / 2}
+                    y={midY - hh / 2}
+                    width={hw}
+                    height={hh}
+                    rx={3 / ui.view.scale}
+                    ry={3 / ui.view.scale}
+                    class="edge-resize-handle marker-handle"
+                    vector-effect="non-scaling-stroke"
+                  />
+                {/each}
+              {/if}
             </g>
           {/if}
         {/each}
@@ -1356,6 +1667,15 @@
     pointer-events: none;
   }
 
+  .line-affected-area {
+    fill: var(--accent);
+    fill-opacity: 0.12;
+    stroke: var(--accent);
+    stroke-width: 1.5px;
+    stroke-dasharray: 6 3;
+    pointer-events: none;
+  }
+
   /* 外形 */
   .kuukan-outline {
     fill: none;
@@ -1374,6 +1694,14 @@
   .partition-line.selected {
     stroke: var(--accent);
     stroke-width: 3.5px;
+  }
+
+  .partition-line-glow {
+    stroke: var(--accent);
+    stroke-width: 9px;
+    stroke-opacity: 0.35;
+    stroke-linecap: round;
+    pointer-events: none;
   }
 
   /* マーカー */
@@ -1465,5 +1793,55 @@
     stroke-width: 2.5px;
     stroke-dasharray: 6 3;
     pointer-events: none;
+  }
+
+  .edge-resize-handle {
+    fill: var(--accent);
+    stroke: #ffffff;
+    stroke-width: 1.5px;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+    transition: transform var(--duration-fast);
+  }
+
+  .edge-resize-handle.marker-handle {
+    fill: #2563eb;
+  }
+
+  /* ゴースト表示（配置済みモノの参考表示） */
+  .ghost-items-layer {
+    pointer-events: none;
+    user-select: none;
+  }
+  .ghost-item-rect {
+    fill: var(--surface);
+    fill-opacity: 0.45;
+    stroke: var(--text-muted);
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 3;
+    opacity: 0.7;
+  }
+  .ghost-item-poly {
+    fill: var(--surface);
+    fill-opacity: 0.45;
+    stroke: var(--text-muted);
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 3;
+    opacity: 0.7;
+  }
+  .ghost-item-point {
+    fill: var(--text-muted);
+    stroke: var(--surface);
+    stroke-width: 1.5px;
+    opacity: 0.7;
+  }
+  .ghost-item-label {
+    font-family: var(--font);
+    font-size: calc(11px * var(--u, 1));
+    fill: var(--text-muted);
+    font-weight: 500;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.85;
   }
 </style>

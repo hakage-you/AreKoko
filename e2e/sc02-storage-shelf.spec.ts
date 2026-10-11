@@ -70,11 +70,12 @@ test('SC-02 部屋に棚を置き、棚を収納にして段に分け、段に�
     expect(areasOf(doc, k!.id).map(a => a.name)).toEqual(['段1', '段2', '段3']);
   });
 
-  await test.step('SC-02-6 編集を出る → Room A のクウカンビュー。本棚に「収納」の札と「開く」', async () => {
-    await page.getByRole('button', { name: /戻る/ }).click();
+  await test.step('SC-02-6 編集を出る → Room A のクウカンビュー。詳細を閉じると、一覧の本棚に「収納」の札と「開く」', async () => {
+    await page.getByRole('button', { name: /編集を終了|戻る/ }).click();
     const s = await snapshot(page);
     expect(s.screen).toBe('view');
     expect(s.view?.kuukan).toBe(findKuukan(s.doc!, 'Room A').id);
+    await page.getByRole('button', { name: '詳細を閉じる' }).click();
     const row = page.getByRole('listitem').filter({ hasText: '本棚' });
     await expect(row.getByText('収納', { exact: true })).toBeVisible();
     await expect(row.getByRole('button', { name: '開く', exact: true })).toBeVisible();
@@ -94,6 +95,9 @@ test('SC-02 部屋に棚を置き、棚を収納にして段に分け、段に�
     const input = page.getByRole('textbox', { name: 'モノの名前', exact: true });
     await input.fill('辞書');
     await input.press('Enter');
+    const modal = page.getByRole('dialog', { name: 'モノの追加' });
+    await modal.getByRole('button', { name: 'あとで配置する' }).click();
+    await modal.getByRole('button', { name: '作成' }).click();
     const doc = await currentDoc(page);
     const k = kuukanOwnedBy(doc, shelfId)!;
     expect(findItem(doc, '辞書').place).toBe(areasOf(doc, k.id)[1]!.id);
