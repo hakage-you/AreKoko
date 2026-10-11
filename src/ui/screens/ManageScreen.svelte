@@ -3,7 +3,7 @@
   import { getApp } from '../context';
   import type { Id, Tag } from '../../core/types';
   import { getIndexes } from '../../core/indexes';
-  import { createTag, renameTag, deleteTag } from '../../core/ops/tags';
+  import { createTag, renameTag } from '../../core/ops/tags';
   import {
     createCategory,
     renameCategory,
@@ -49,18 +49,7 @@
   }
 
   function handleDeleteTag(tag: Tag) {
-    if (!indexes) return;
-    const count = indexes.itemsByTag.get(tag.id)?.length ?? 0;
-    app.confirm({
-      title: 'タグの削除',
-      message: `タグ「${tag.name}」を削除します。付いている ${count}件のモノから外れます。`,
-      details: [],
-      confirmLabel: '削除する',
-      danger: true,
-      onConfirm: () => {
-        app.apply((doc, ctx) => deleteTag(doc, tag.id, ctx));
-      },
-    });
+    app.requestDeleteTag(tag.id);
   }
 
   // カテゴリ関連

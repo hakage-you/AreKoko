@@ -7,17 +7,18 @@ import App from './ui/App.svelte';
 const target = document.getElementById('app');
 if (!target) throw new Error('#app が見つかりません');
 
-async function chooseDeps(): Promise<AppDeps> {
-  // 開発時だけ、`?memory` でメモリ上の見本の文書を使う（画面の確認用。本番のビルドには入らない）。
+async function chooseDeps(): Promise<{ deps: AppDeps; onStore?: (store: AppStore) => void }> {
+  // 開発時だけ、`?memory` でメモリ上の見本の文書を使う（画面の確認と E2E 試験用。本番のビルドには入らない）。
   if (import.meta.env.DEV && new URLSearchParams(location.search).has('memory')) {
-    const { memoryDeps } = await import('./app/memoryDeps');
-    return memoryDeps();
+    const { memoryDeps, exposeStore } = await import('./app/memoryDeps');
+    return { deps: memoryDeps(), onStore: exposeStore };
   }
-  return browserDeps();
+  return { deps: browserDeps() };
 }
 
-void chooseDeps().then(deps => {
+void chooseDeps().then(({ deps, onStore }) => {
   const store = new AppStore(deps);
+  onStore?.(store);
   void store.init();
   mount(App, { target, props: { store } });
 });

@@ -3,12 +3,8 @@
   import { getApp } from '../context';
   import type { Kuukan, Id } from '../../core/types';
   import { NIL_ID, UNSET_NAME, NAMELESS_NAME } from '../../core/constants';
-  import { itemsWithin, formatPlacePath } from '../../core/places';
-  import {
-    renameKuukan,
-    planDeleteKuukan,
-    deleteKuukan,
-  } from '../../core/ops/kuukans';
+  import { itemsDirectlyIn, formatPlacePath } from '../../core/places';
+  import { renameKuukan } from '../../core/ops/kuukans';
   import { TEMPLATE_LIST } from '../../editor/templates';
   import type { TemplateId } from '../../editor/draft';
   import TemplateThumb from '../components/TemplateThumb.svelte';
@@ -88,26 +84,7 @@
 
   function handleDeleteKuukan(kuukan: Kuukan) {
     closeMenu();
-    if (!$app.doc) return;
-    const relocations = planDeleteKuukan($app.doc, kuukan.id);
-    const displayName = kuukan.name ?? NAMELESS_NAME;
-    const message = `クウカン「${displayName}」を削除します。中のモノは未設定へ移ります。`;
-    const details = relocations.map((r) => {
-      const fromPath = formatPlacePath($app.doc!, r.from);
-      const toPath = formatPlacePath($app.doc!, r.to);
-      return `${fromPath} から ${r.items.length}件 → ${toPath}`;
-    });
-
-    app.confirm({
-      title: 'クウカンの削除',
-      message,
-      details,
-      confirmLabel: '削除する',
-      danger: true,
-      onConfirm: () => {
-        app.apply((doc, ctx) => deleteKuukan(doc, kuukan.id, ctx));
-      },
-    });
+    app.requestDeleteKuukan(kuukan.id);
   }
 
   function toggleMenu(id: Id, e: MouseEvent) {
@@ -227,7 +204,7 @@
             {UNSET_NAME}
           </button>
           <span class="chip small muted">
-            {itemsWithin($app.doc, unsetKuukan.id).length}件
+            {itemsDirectlyIn($app.doc, unsetKuukan.id).length}件
           </span>
           <button
             type="button"
@@ -291,7 +268,7 @@
                 {kuukan.name ?? NAMELESS_NAME}
               </button>
               <span class="chip small muted">
-                {itemsWithin($app.doc, kuukan.id).length}件
+                {itemsDirectlyIn($app.doc, kuukan.id).length}件
               </span>
               {#if hasDrawing(kuukan.id)}
                 <span class="chip small accent">図あり</span>
@@ -406,7 +383,7 @@
                   {/if}
                 </div>
                 <span class="chip small muted">
-                  {itemsWithin($app.doc, kuukan.id).length}件
+                  {itemsDirectlyIn($app.doc, kuukan.id).length}件
                 </span>
                 {#if hasDrawing(kuukan.id)}
                   <span class="chip small accent">図あり</span>

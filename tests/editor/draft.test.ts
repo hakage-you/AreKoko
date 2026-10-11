@@ -10,6 +10,7 @@ import {
   addDraftOutline,
 } from '../../src/editor/draft';
 import { addStep } from '../../src/editor/outline';
+import { normalizePolygon } from '../../src/geometry/polygon';
 import { splitAt } from '../../src/core/ops/areas';
 import { createTestContext, deepFreeze } from '../helpers/ctx';
 import { createSampleDocument, FIXTURE_IDS } from '../helpers/fixtures';
@@ -126,6 +127,38 @@ describe('draft', () => {
       const draft = storageDraft(doc, FIXTURE_IDS.battery, ctx);
       expect(draft.doc.drawing.kuukans[0]!.aspect).toBeCloseTo(4 / 3);
       expect(validateDraft(draft)).toEqual([]);
+    });
+
+    it('直角多角形の描画を持つモノからは、その形を外形にする（設計 7.5、A-23、TRS 付録B I-09）', () => {
+      const doc = createSampleDocument();
+      // 幅 400・高さ 200 の L字（右下が欠けた形）
+      doc.drawing.items.push({
+        item: FIXTURE_IDS.battery,
+        shape: { type: 'poly', points: [[1000, 1000], [1400, 1000], [1400, 1100], [1200, 1100], [1200, 1200], [1000, 1200]] },
+        rotation: 2,
+      });
+      deepFreeze(doc);
+
+      const draft = storageDraft(doc, FIXTURE_IDS.battery, createTestContext());
+      const kd = draft.doc.drawing.kuukans[0]!;
+      // 外接長方形をちょうど 0〜10000 に写した L字。回転は戻す
+      expect(kd.outline).toEqual(
+        normalizePolygon([[0, 0], [10000, 0], [10000, 5000], [5000, 5000], [5000, 10000], [0, 10000]]),
+      );
+      // box1Kuukan に描画はないので w / h = 400 / 200
+      expect(kd.aspect).toBeCloseTo(2);
+      expect(validateDraft(draft)).toEqual([]);
+    });
+
+    it('点の描画を持つモノからは標準の長方形になる（点には形がない。A-23）', () => {
+      const doc = createSampleDocument();
+      doc.drawing.items.push({ item: FIXTURE_IDS.battery, shape: { type: 'point', at: [500, 500] }, rotation: 0 });
+      deepFreeze(doc);
+
+      const draft = storageDraft(doc, FIXTURE_IDS.battery, createTestContext());
+      const kd = draft.doc.drawing.kuukans[0]!;
+      expect(kd.outline).toEqual([[0, 0], [10000, 0], [10000, 10000], [0, 10000]]);
+      expect(kd.aspect).toBeCloseTo(4 / 3);
     });
   });
 

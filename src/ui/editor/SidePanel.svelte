@@ -9,8 +9,6 @@
   import {
     renameArea,
     splitEven,
-    deleteLine,
-    planDeleteLine,
   } from '../../core/ops/areas';
   import {
     updateMarker,
@@ -18,7 +16,7 @@
     alignMarkers,
   } from '../../core/ops/markers';
   import { buildAreaTree } from '../../core/indexes';
-  import { displayName, formatPlacePath } from '../../core/places';
+  import { displayName } from '../../core/places';
   import { computeRegions } from '../../geometry/regions';
   import { isRectangle, boundingRect } from '../../geometry/polygon';
   import type { Id, Axis, Rotation } from '../../core/types';
@@ -34,6 +32,13 @@
   const targetKuukan = $derived.by(() => {
     if (!doc || !kuukanId) return null;
     return doc.membership.kuukans.find((k) => k.id === kuukanId) ?? null;
+  });
+
+  /** クウカンの表示名。収納のクウカンは持ち主のモノの名前（D3）。下書きでは持ち主は文書の側にいる。 */
+  const kuukanDisplayName = $derived.by(() => {
+    if (!targetKuukan || !kuukanId) return '';
+    if (targetKuukan.owner !== null && $app.doc) return displayName($app.doc, targetKuukan.owner);
+    return displayName(doc ?? $app.doc!, kuukanId);
   });
 
   const targetKuukanDrawing = $derived.by(() => {
@@ -154,9 +159,7 @@
       const children = areaTree?.children.get(nodeId) ?? [];
       const hasChildren = children.length > 0;
       const isRoot = nodeId === kuukanId;
-      const name = isRoot
-        ? (targetKuukan?.name ?? 'クウカン')
-        : displayName(doc!, nodeId);
+      const name = isRoot ? kuukanDisplayName : displayName(doc!, nodeId);
 
       const hasDirectItems = doc!.membership.items.some(
         (i) => i.place === nodeId,
@@ -209,6 +212,11 @@
     return doc.membership.areas.find((a) => a.id === ui.selectedArea) ?? null;
   });
 
+  // クウカン全体が選ばれているか
+  const isSelectedKuukan = $derived(
+    Boolean(kuukanId && ui.selectedArea === kuukanId && !selectedAreaObj),
+  );
+
   let selectedAreaNameInput = $state('');
   $effect(() => {
     if (selectedAreaObj) selectedAreaNameInput = selectedAreaObj.name;
@@ -254,66 +262,16 @@
 
   function handleDeleteAreaPartition() {
     if (!doc || !ui.selectedArea || !selectedAreaPartition) return;
-    const nodeId = ui.selectedArea;
-    const lineIndex = 0;
-
-    if ($app.editor?.kind === 'kuukan') {
-      const plan = planDeleteLine(doc, nodeId, lineIndex);
-      const details = plan.relocations.map((r) => {
-        const fromPath = formatPlacePath(doc!, r.from);
-        const toPath = formatPlacePath(doc!, r.to);
-        return `${fromPath} から ${r.items.length}件 → ${toPath}`;
-      });
-      app.confirm({
-        title: '仕切りの削除',
-        message: 'このエリアを分けている仕切りを削除します。',
-        details,
-        confirmLabel: '削除する',
-        danger: true,
-        onConfirm: () => {
-          applyToEditor(app, $app, (d, ctx) =>
-            deleteLine(d, nodeId, lineIndex, ctx),
-          );
-        },
-      });
-    } else {
-      applyToEditor(app, $app, (d, ctx) =>
-        deleteLine(d, nodeId, lineIndex, ctx),
-      );
-    }
+    app.requestDeleteLine(ui.selectedArea, 0, 'area');
   }
 
   // 選んだ線
   function handleDeleteSelectedLine() {
     if (!doc || !ui.selectedLine) return;
     const { node, lineIndex } = ui.selectedLine;
-
-    if ($app.editor?.kind === 'kuukan') {
-      const plan = planDeleteLine(doc, node, lineIndex);
-      const details = plan.relocations.map((r) => {
-        const fromPath = formatPlacePath(doc!, r.from);
-        const toPath = formatPlacePath(doc!, r.to);
-        return `${fromPath} から ${r.items.length}件 → ${toPath}`;
-      });
-      app.confirm({
-        title: '仕切りの線の削除',
-        message: '選択した仕切りの線を削除します。',
-        details,
-        confirmLabel: '削除する',
-        danger: true,
-        onConfirm: () => {
-          applyToEditor(app, $app, (d, ctx) =>
-            deleteLine(d, node, lineIndex, ctx),
-          );
-          ui.selectedLine = null;
-        },
-      });
-    } else {
-      applyToEditor(app, $app, (d, ctx) =>
-        deleteLine(d, node, lineIndex, ctx),
-      );
+    app.requestDeleteLine(node, lineIndex, 'line', () => {
       ui.selectedLine = null;
-    }
+    });
   }
 
   // 選んだマーカー
@@ -569,21 +527,25 @@
         </button>
       </div>
     </section>
-  {:else if selectedAreaObj}
+  {:else if selectedAreaObj || isSelectedKuukan}
     <section class="panel-section active-selection" use:attention={ui.selectedArea}>
-      <div class="section-title">選んだエリア</div>
-      <div class="field-block">
-        <label for="selected-area-name-input">名前</label>
-        <input
-          id="selected-area-name-input"
-          type="text"
-          bind:value={selectedAreaNameInput}
-          onblur={commitSelectedAreaName}
-          onkeydown={(e) => {
-            if (e.key === 'Enter') commitSelectedAreaName();
-          }}
-        />
-      </div>
+      {#if isSelectedKuukan}
+        <div class="section-title">クウカン全体</div>
+      {:else}
+        <div class="section-title">選んだエリア</div>
+        <div class="field-block">
+          <label for="selected-area-name-input">名前</label>
+          <input
+            id="selected-area-name-input"
+            type="text"
+            bind:value={selectedAreaNameInput}
+            onblur={commitSelectedAreaName}
+            onkeydown={(e) => {
+              if (e.key === 'Enter') commitSelectedAreaName();
+            }}
+          />
+        </div>
+      {/if}
 
       {#if canSplitEven}
         <div class="field-block">
@@ -629,12 +591,18 @@
             class="small danger ghost"
             onclick={handleDeleteAreaPartition}
           >
-            このエリアを分けている仕切りを消す
+            {isSelectedKuukan
+              ? 'クウカン全体を分けている仕切りを消す'
+              : 'このエリアを分けている仕切りを消す'}
           </button>
         </div>
       {:else if selectedAreaPartition}
         <!-- N等分は線が複数あり、どの線を消すかを決めてもらう必要がある（黙って1本目を消さない） -->
-        <p class="muted small">このエリアは{selectedAreaPartition.at.length}本の線で分けられています。消したい線を図で押して選んでください。</p>
+        <p class="muted small">
+          {isSelectedKuukan
+            ? 'クウカン全体'
+            : 'このエリア'}は{selectedAreaPartition.at.length}本の線で分けられています。消したい線を図で押して選んでください。
+        </p>
       {/if}
     </section>
   {/if}
@@ -659,7 +627,7 @@
       {:else}
         <div class="field-block">
           <div class="group-label">名前</div>
-          <div class="readonly-text">{displayName(doc ?? $app.doc!, kuukanId ?? '')}</div>
+          <div class="readonly-text">{kuukanDisplayName}</div>
         </div>
       {/if}
 

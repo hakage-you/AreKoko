@@ -3,6 +3,7 @@ import { COORD_MAX, DEFAULT_AREA_LABEL, NIL_ID, UNSET_NAME } from '../core/const
 import { OpError, type OpContext } from '../core/ops/common';
 import { displayName, kuukanOfPlace } from '../core/places';
 import { validateDocument, type Violation } from '../core/validate';
+import { boundingRect, normalizePolygon } from '../geometry/polygon';
 import { reframeDraft } from './outline';
 import { buildTemplate } from './templates';
 
@@ -183,6 +184,8 @@ export function redrawDraft(doc: ArekokoDocument, source: Id, ctx: OpContext): D
 
 /**
  * モノを収納として設定するための下書きを作成する。
+ * 外形の初期値は長方形。描画が長方形ならその縦横比、直角多角形ならその形（回転は戻す）。
+ * 点の描画には形がないので、初期値の長方形のまま（設計 7.5、A-23、TRS 付録B I-09）。
  */
 export function storageDraft(doc: ArekokoDocument, item: Id, ctx: OpContext): Draft {
   const targetItem = doc.membership.items.find(i => i.id === item);
@@ -192,9 +195,23 @@ export function storageDraft(doc: ArekokoDocument, item: Id, ctx: OpContext): Dr
 
   const itemDrawing = doc.drawing.items.find(d => d.item === item);
   let aspect = 4 / 3;
+  let outline: Point[] = [
+    [0, 0],
+    [COORD_MAX, 0],
+    [COORD_MAX, COORD_MAX],
+    [0, COORD_MAX],
+  ];
 
-  if (itemDrawing && itemDrawing.shape.type === 'rect') {
-    const { w, h } = itemDrawing.shape;
+  const shape = itemDrawing?.shape;
+  const box =
+    shape?.type === 'rect'
+      ? { x0: shape.x, y0: shape.y, x1: shape.x + shape.w, y1: shape.y + shape.h }
+      : shape?.type === 'poly'
+        ? boundingRect(shape.points)
+        : null;
+  if (shape && box) {
+    const w = box.x1 - box.x0;
+    const h = box.y1 - box.y0;
     if (w > 0 && h > 0) {
       const parentKuukanId = kuukanOfPlace(doc, targetItem.place);
       const parentKd = doc.drawing.kuukans.find(k => k.kuukan === parentKuukanId);
@@ -202,6 +219,16 @@ export function storageDraft(doc: ArekokoDocument, item: Id, ctx: OpContext): Dr
         aspect = (w * parentKd.aspect) / h;
       } else {
         aspect = w / h;
+      }
+      if (shape.type === 'poly') {
+        // 外接長方形をちょうど 0〜10000 に写す（2.4 の付け直しと同じ写し方）
+        const mapped = normalizePolygon(
+          shape.points.map(([x, y]): Point => [
+            Math.round(((x - box.x0) * COORD_MAX) / w),
+            Math.round(((y - box.y0) * COORD_MAX) / h),
+          ]),
+        );
+        if (mapped) outline = mapped;
       }
     }
   }
@@ -233,12 +260,7 @@ export function storageDraft(doc: ArekokoDocument, item: Id, ctx: OpContext): Dr
       kuukans: [
         {
           kuukan: kuukanId,
-          outline: [
-            [0, 0],
-            [COORD_MAX, 0],
-            [COORD_MAX, COORD_MAX],
-            [0, COORD_MAX],
-          ],
+          outline,
           aspect,
         },
       ],

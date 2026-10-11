@@ -28,9 +28,10 @@ export function displayName(doc: ArekokoDocument, id: Id): string {
       if (ownerItem) {
         return ownerItem.name;
       }
-      return kuukan.name ?? NAMELESS_NAME;
+      return kuukan.name || NAMELESS_NAME;
     }
-    return kuukan.name ?? NAMELESS_NAME;
+    // 空文字の名前は文書にはそのまま残し、表示だけ「名前なし」にする（A-11、TRS 付録B I-07）
+    return kuukan.name || NAMELESS_NAME;
   }
 
   const area = indexes.areaById.get(id);
@@ -360,4 +361,14 @@ export function itemsWithin(doc: ArekokoDocument, place: Id): Item[] {
   }
 
   return result;
+}
+
+/**
+ * クウカン（クウカンそのものとエリア）に直接置かれたモノを返す。
+ * 収納はそれ自身を1件と数え、中身は含めない（クウカンの一覧の件数。A-21、TRS 付録B I-08）。
+ */
+export function itemsDirectlyIn(doc: ArekokoDocument, kuukan: Id): Item[] {
+  const indexes = getIndexes(doc);
+  const places = [kuukan, ...doc.membership.areas.filter(a => a.kuukan === kuukan).map(a => a.id)];
+  return places.flatMap(p => indexes.itemsByPlace.get(p) ?? []);
 }

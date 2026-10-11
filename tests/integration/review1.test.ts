@@ -45,10 +45,10 @@ describe('結合試験: レビュー1の直し', () => {
     expect(doc.membership.areas.filter(a => a.kuukan === room).map(a => a.name)).toEqual(['棚1', '棚2']);
     expect(doc.drawing.markers.filter(m => m.kuukan === room)).toHaveLength(1);
     for (const id of items) expect(doc.membership.items.find(i => i.id === id)!.place).toBe(room);
-    // 確定した後はそのクウカンの編集。元に戻すで図を描く前に戻る
+    // 確定した後はそのクウカンの編集。確定は元に戻すでは取り消せない（A-03、TRS 付録B I-06）
     expect(app.state.editor).toEqual({ kind: 'kuukan', kuukan: room });
     app.undo();
-    expect(app.state.doc!.drawing.kuukans.some(x => x.kuukan === room)).toBe(false);
+    expect(app.state.doc!.drawing.kuukans.some(x => x.kuukan === room)).toBe(true);
     expect(app.state.doc!.membership.kuukans.some(x => x.id === room)).toBe(true);
     await app.flush();
     expectHealthy(app, file);

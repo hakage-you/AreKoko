@@ -8,7 +8,14 @@ import { createEmptyDocument } from '../core/document';
 import { serializeDocument } from '../core/serialize';
 import { History } from '../core/history';
 import { OpError } from '../core/ops/common';
-import { kuukanOfPlace } from '../core/places';
+import { displayName, formatPlacePath, kuukanOfPlace } from '../core/places';
+import { getIndexes } from '../core/indexes';
+import { addItem, deleteItems, planDeleteItems } from '../core/ops/items';
+import { planRemoveStorage, removeStorage } from '../core/ops/storage';
+import { deleteKuukan, planDeleteKuukan } from '../core/ops/kuukans';
+import { deleteTag } from '../core/ops/tags';
+import { deleteLine, planDeleteLine } from '../core/ops/areas';
+import { describeRelocations } from './impact';
 import { NIL_ID } from '../core/constants';
 import type { OpContext, OpResult } from '../core/ops/common';
 import type { FileBackend, FileStat } from '../file/backend';
@@ -401,15 +408,8 @@ export class AppStore {
 
   apply(op: (doc: ArekokoDocument, ctx: OpContext) => OpResult): OpResult | null {
     if (!this._state.doc || !this.session) return null;
-
-    const ctx: OpContext = {
-      newId: () => this.deps.newId(),
-      now: () => this.deps.now(),
-    };
-
-    let result: OpResult;
     try {
-      result = op(this._state.doc, ctx);
+      return this.runOp(op);
     } catch (err: unknown) {
       if (err instanceof OpError) {
         this.showToast('error', err.message);
@@ -417,12 +417,31 @@ export class AppStore {
       }
       throw err;
     }
+  }
 
-    if (result.doc !== this._state.doc) {
-      this.history.record(this._state.doc);
+  /**
+   * トーストを出さずに操作を試す。成功すれば apply と同じ（履歴・保存・ハイライト）。
+   * 配置モードで、断られた理由を図の上の案内に出すため（詳細設計(シナリオ) 1章）。
+   */
+  tryApply(op: (doc: ArekokoDocument, ctx: OpContext) => OpResult):
+    { ok: true; result: OpResult } | { ok: false; message: string } {
+    if (!this._state.doc || !this.session) return { ok: false, message: '文書が開かれていません' };
+    try {
+      return { ok: true, result: this.runOp(op) };
+    } catch (err: unknown) {
+      if (err instanceof OpError) return { ok: false, message: err.message };
+      throw err;
+    }
+  }
+
+  /** 操作をかけ、文書が変われば履歴に積んで差し替える。OpError はそのまま投げる。 */
+  private runOp(op: (doc: ArekokoDocument, ctx: OpContext) => OpResult): OpResult {
+    const doc = this._state.doc!;
+    const result = op(doc, this.opContext());
+    if (result.doc !== doc) {
+      this.history.record(doc);
       this.commitDoc(result.doc, new Set(result.moved));
     }
-
     return result;
   }
 
@@ -447,7 +466,7 @@ export class AppStore {
     const exists = new Set(doc.membership.items.map(it => it.id));
     const detail = this._state.detail !== null && exists.has(this._state.detail) ? this._state.detail : null;
     const selection = new Set([...this._state.selection].filter(id => exists.has(id)));
-    // 編集中のクウカンがなくなったら（確定を元に戻したときなど）一覧へ
+    // 編集中のクウカンがなくなったら一覧へ
     const ed = this._state.editor;
     const editorGone = ed?.kind === 'kuukan' && !doc.membership.kuukans.some(k => k.id === ed.kuukan);
     this.updateState({
@@ -961,7 +980,11 @@ export class AppStore {
     return planConfirm(this._state.doc, ed.draft, mode);
   }
 
-  /** 下書きを文書に確定し、確定したクウカンの編集へ移る。移ったモノはハイライトされる。 */
+  /**
+   * 下書きを文書に確定し、確定したクウカンの編集へ移る。
+   * 確定は下書きの画面から確定したクウカンの画面へまたぐ操作なので、元に戻すでは取り消せない。
+   * 確定した時点で文書の履歴も消す（A-03、TRS 付録B I-06）。
+   */
   confirmDraft(mode: ConfirmMode): void {
     const ed = this._state.editor;
     if (ed?.kind !== 'draft') return;
@@ -970,8 +993,8 @@ export class AppStore {
     if (!result) return;
     const kuukan = result.created[0] ?? draft.kuukan;
     this.draftHistory.clear();
-    // 確定は文書の履歴に積んだまま（元に戻すで確定を取り消せる）。表示を確定したクウカンへ。
-    this.updateState({ screen: 'editor', editor: { kind: 'kuukan', kuukan } });
+    this.history.clear();
+    this.updateState({ screen: 'editor', editor: { kind: 'kuukan', kuukan }, canUndo: false, canRedo: false });
   }
 
   /** 下書きを捨てて、開いた元の画面へ戻る。 */
@@ -979,6 +1002,179 @@ export class AppStore {
     if (this._state.editor?.kind !== 'draft') return;
     this.draftHistory.clear();
     this.updateState({ screen: this.editorReturnScreen, editor: null, canUndo: false, canRedo: false });
+  }
+
+  // ---- 利用者の操作（画面の判断をここに集める。詳細設計(シナリオ) 1章） ----
+
+  /** クウカンビューの「＋モノを追加」。置き場は選んでいるエリア、なければ開いているクウカン（V2）。 */
+  addItemInView(name: string): Id | null {
+    const v = this._state.view;
+    const trimmed = name.trim();
+    if (!v || !trimmed) return null;
+    const place = v.area ?? v.kuukan;
+    const created = this.apply((doc, ctx) => addItem(doc, { name: trimmed, place }, ctx))?.created[0];
+    if (created === undefined) return null;
+    this.showDetail(created);
+    return created;
+  }
+
+  /** 1件の削除。確認しない（設計 8.4。元に戻すで補う）。 */
+  deleteItem(id: Id): void {
+    this.apply((doc, ctx) => deleteItems(doc, [id], ctx));
+  }
+
+  /** 複数選択のまとめて削除。件数と影響を見せて確認する（設計 8.4）。 */
+  requestDeleteSelection(): void {
+    const doc = this._state.doc;
+    const ids = [...this._state.selection];
+    if (!doc || ids.length === 0) return;
+    const relocations = this.tryPlan(() => planDeleteItems(doc, ids));
+    if (!relocations) return;
+    this.confirm({
+      title: 'モノの削除',
+      message: `${ids.length}件のモノを削除します。`,
+      details: describeRelocations(doc, relocations),
+      confirmLabel: '削除',
+      danger: true,
+      onConfirm: () => {
+        this.apply((d, ctx) => deleteItems(d, ids, ctx));
+        this.setSelection([]);
+      },
+    });
+  }
+
+  /** 収納設定の削除。影響を見せて確認する（設計 7.5）。 */
+  requestRemoveStorage(item: Id): void {
+    const doc = this._state.doc;
+    const it = doc?.membership.items.find(i => i.id === item);
+    if (!doc || !it) return;
+    const relocations = this.tryPlan(() => planRemoveStorage(doc, item));
+    if (!relocations) return;
+    const total = relocations.reduce((sum, r) => sum + r.items.length, 0);
+    this.confirm({
+      title: '収納設定の削除',
+      message: `中のクウカンがなくなり、中のモノ ${total}件は「${formatPlacePath(doc, it.place)}」へ移ります。`,
+      details: describeRelocations(doc, relocations),
+      confirmLabel: '収納設定を削除',
+      danger: true,
+      onConfirm: () => {
+        this.apply((d, ctx) => removeStorage(d, item, ctx));
+      },
+    });
+  }
+
+  /** どこにも置かれていないクウカンの削除。影響を見せて確認する（設計 7.8、詳細設計UI 5.3）。 */
+  requestDeleteKuukan(kuukan: Id): void {
+    const doc = this._state.doc;
+    if (!doc) return;
+    const relocations = this.tryPlan(() => planDeleteKuukan(doc, kuukan));
+    if (!relocations) return;
+    this.confirm({
+      title: 'クウカンの削除',
+      message: `クウカン「${displayName(doc, kuukan)}」を削除します。中のモノは未設定へ移ります。`,
+      details: describeRelocations(doc, relocations),
+      confirmLabel: '削除する',
+      danger: true,
+      onConfirm: () => {
+        this.apply((d, ctx) => deleteKuukan(d, kuukan, ctx));
+      },
+    });
+  }
+
+  /** タグの削除。付いている件数を見せて確認する（設計 7.6）。 */
+  requestDeleteTag(tag: Id): void {
+    const doc = this._state.doc;
+    const t = doc?.membership.tags.find(x => x.id === tag);
+    if (!doc || !t) return;
+    const count = getIndexes(doc).itemsByTag.get(tag)?.length ?? 0;
+    this.confirm({
+      title: 'タグの削除',
+      message: `タグ「${t.name}」を削除します。付いている ${count}件のモノから外れます。`,
+      details: [],
+      confirmLabel: '削除する',
+      danger: true,
+      onConfirm: () => {
+        this.apply((d, ctx) => deleteTag(d, tag, ctx));
+      },
+    });
+  }
+
+  /**
+   * 仕切りの線を消す。確定したクウカンなら影響を見せて確認し、下書きなら確認せずに消す（詳細設計 段階5 8.4）。
+   * from は、エリアの欄から消すか、選んだ線から消すか（確認の文言だけが違う）。
+   */
+  requestDeleteLine(node: Id, lineIndex: number, from: 'area' | 'line', onDone?: () => void): void {
+    const ed = this._state.editor;
+    if (!ed) return;
+    const op = (d: ArekokoDocument, ctx: OpContext) => deleteLine(d, node, lineIndex, ctx);
+    if (ed.kind === 'draft') {
+      if (this.draftApply(op)) onDone?.();
+      return;
+    }
+    const doc = this._state.doc;
+    if (!doc) return;
+    const plan = this.tryPlan(() => planDeleteLine(doc, node, lineIndex));
+    if (!plan) return;
+    const isKuukan = doc.membership.kuukans.some((k) => k.id === node);
+    this.confirm({
+      title: from === 'area' ? '仕切りの削除' : '仕切りの線の削除',
+      message:
+        from === 'area'
+          ? isKuukan
+            ? 'クウカン全体を分けている仕切りを削除します。'
+            : 'このエリアを分けている仕切りを削除します。'
+          : '選択した仕切りの線を削除します。',
+      details: describeRelocations(doc, plan.relocations),
+      confirmLabel: '削除する',
+      danger: true,
+      onConfirm: () => {
+        if (this.apply(op)) onDone?.();
+      },
+    });
+  }
+
+  /** 下書きの確定。置き換えなら、消えるエリアと影響を見せて確認する（設計 8.2）。 */
+  requestConfirmDraft(mode: ConfirmMode): void {
+    if (this._state.editor?.kind !== 'draft') return;
+    if (mode !== 'replace') {
+      this.confirmDraft(mode);
+      return;
+    }
+    const doc = this._state.doc;
+    if (!doc) return;
+    const plan = this.tryPlan(() => this.planDraftConfirm('replace'));
+    if (!plan) return;
+    this.confirm({
+      title: 'クウカンを置き換えますか？',
+      message: '元のクウカンをこの下書きの内容で置き換えます。置き換えた後は「元に戻す」で戻せません。',
+      details: [
+        ...plan.removedAreas.map(a => `消えるエリア: ${displayName(doc, a)}`),
+        ...describeRelocations(doc, plan.relocations),
+      ],
+      confirmLabel: '置き換える',
+      danger: true,
+      onConfirm: () => this.confirmDraft('replace'),
+    });
+  }
+
+  /** クウカン編集の操作。下書きなら下書きに、確定したクウカンなら文書にかける。 */
+  editorApply(op: (doc: ArekokoDocument, ctx: OpContext) => OpResult): OpResult | null {
+    const ed = this._state.editor;
+    if (!ed) return null;
+    return ed.kind === 'draft' ? this.draftApply(op) : this.apply(op);
+  }
+
+  /** 影響の計算（plan〜）。前提を満たさなければトーストを出して null。 */
+  private tryPlan<T>(plan: () => T): T | null {
+    try {
+      return plan();
+    } catch (err: unknown) {
+      if (err instanceof OpError) {
+        this.showToast('error', err.message);
+        return null;
+      }
+      throw err;
+    }
   }
 
   private rememberReturnScreen(): void {

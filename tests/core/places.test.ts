@@ -5,6 +5,7 @@ import {
   displayName,
   formatPlacePath,
   isInsideKuukan,
+  itemsDirectlyIn,
   itemsWithin,
   kuukanOfPlace,
   placeCandidates,
@@ -22,6 +23,23 @@ describe('displayName', () => {
     expect(displayName(doc, FIXTURE_IDS.battery)).toBe('単3電池');
     expect(displayName(doc, FIXTURE_IDS.categorySmallItems)).toBe('小物');
     expect(displayName(doc, FIXTURE_IDS.tagEmergency)).toBe('防災');
+  });
+
+  it('名前が空文字のどこにも置かれていないクウカンは「名前なし」と出す。文書の名前はそのまま（A-11、TRS 付録B I-07）', () => {
+    const doc = createSampleDocument();
+    doc.membership.kuukans.find(k => k.id === FIXTURE_IDS.roomA)!.name = '';
+    expect(displayName(doc, FIXTURE_IDS.roomA)).toBe('名前なし');
+    expect(doc.membership.kuukans.find(k => k.id === FIXTURE_IDS.roomA)!.name).toBe('');
+  });
+});
+
+describe('itemsDirectlyIn', () => {
+  it('クウカンそのものとエリアに直接置かれたモノだけを返す。収納は1件で、中身は含めない（A-21、TRS 付録B I-08）', () => {
+    const doc = createSampleDocument();
+    // Room A には棚A1（収納）だけが直接ある。棚A1 の中の BOX1・単3電池は数えない
+    expect(itemsDirectlyIn(doc, FIXTURE_IDS.roomA).map(i => i.id)).toEqual([FIXTURE_IDS.shelf]);
+    // 棚A1 のクウカンでは、エリア 段1 に直接ある BOX1 だけ。BOX1 の中の単3電池は数えない
+    expect(itemsDirectlyIn(doc, FIXTURE_IDS.shelfKuukan).map(i => i.id)).toEqual([FIXTURE_IDS.box1]);
   });
 });
 

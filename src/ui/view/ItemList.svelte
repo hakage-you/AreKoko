@@ -2,9 +2,7 @@
   import { autofocus } from '../actions';
   import { getApp } from '../context';
   import { getViewUi } from './viewUi.svelte';
-  import { NIL_ID } from '../../core/constants';
   import { buildAreaTree, getIndexes } from '../../core/indexes';
-  import { addItem } from '../../core/ops/items';
   import { displayName } from '../../core/places';
   import type { ArekokoDocument, Id, Item } from '../../core/types';
   import {
@@ -86,15 +84,7 @@
   );
 
   function handleAddItem(): void {
-    const trimmed = newItemName.trim();
-    if (!trimmed) return;
-    const targetPlace = area ?? kuukan ?? NIL_ID;
-    const res = app.apply((doc, ctx) =>
-      addItem(doc, { name: trimmed, place: targetPlace }, ctx)
-    );
-    const createdId = res?.created[0];
-    if (createdId !== undefined) {
-      app.showDetail(createdId);
+    if (app.addItemInView(newItemName) !== null) {
       newItemName = '';
       isAdding = false;
     }

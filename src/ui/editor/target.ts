@@ -27,17 +27,12 @@ export function editorKuukan(state: AppState): Id | null {
 }
 
 /**
- * クウカン編集対象の文書に操作を適用する。
- * 下書きなら app.draftApply、確定したクウカンなら app.apply。
+ * クウカン編集対象の文書に操作を適用する（判断はストアの editorApply）。
  */
 export function applyToEditor(
   app: AppStore,
-  state: AppState,
+  _state: AppState,
   op: (doc: ArekokoDocument, ctx: OpContext) => OpResult,
 ): OpResult | null {
-  if (!state.editor) return null;
-  if (state.editor.kind === 'draft') {
-    return app.draftApply(op);
-  }
-  return app.apply(op);
+  return app.editorApply(op);
 }

@@ -8,13 +8,8 @@
     setItemsCategory,
     addTagToItems,
     removeTagFromItems,
-    deleteItems,
   } from '../../core/ops/items';
   import { removeNotice } from '../../core/ops/notices';
-  import {
-    planRemoveStorage,
-    removeStorage,
-  } from '../../core/ops/storage';
   import { formatPlacePath } from '../../core/places';
   import { timestampOfV7 } from '../../core/ids';
   import PlacePicker from './PlacePicker.svelte';
@@ -135,31 +130,11 @@
   }
 
   function handleRemoveStorage() {
-    if (!$app.doc || !item) return;
-    const relocations = planRemoveStorage($app.doc, id);
-    const totalCount = relocations.reduce((sum, r) => sum + r.items.length, 0);
-    const targetPath = formatPlacePath($app.doc, item.place);
-    const message = `中のクウカンがなくなり、中のモノ ${totalCount}件は「${targetPath}」へ移ります。`;
-    const details = relocations.map((r) => {
-      const fromPath = formatPlacePath($app.doc!, r.from);
-      const toPath = formatPlacePath($app.doc!, r.to);
-      return `${fromPath} から ${r.items.length}件 → ${toPath}`;
-    });
-
-    app.confirm({
-      title: '収納設定の削除',
-      message,
-      details,
-      confirmLabel: '収納設定を削除',
-      danger: true,
-      onConfirm: () => {
-        app.apply((doc, ctx) => removeStorage(doc, id, ctx));
-      },
-    });
+    app.requestRemoveStorage(id);
   }
 
   function handleDeleteItem() {
-    app.apply((doc, ctx) => deleteItems(doc, [id], ctx));
+    app.deleteItem(id);
     onClose();
   }
 

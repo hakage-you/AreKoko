@@ -1,13 +1,15 @@
 // 開発用：ファイルの代わりにメモリ上の文書で動かす AppDeps（`?memory` を付けて開いたときだけ使う）。
 // ファイル選択はOSのダイアログで自動の確認ができないため、画面の確認にこれを使う。本番のビルドでは使わない。
 
-import type { AppDeps } from './store';
+import type { AppDeps, AppStore } from './store';
 import type { FileBackend, FileStat } from '../file/backend';
 import type { AppSettings } from '../file/settings';
 import type { ArekokoDocument, Id } from '../core/types';
 import { newId } from '../core/ids';
 import { createEmptyDocument } from '../core/document';
 import { serializeDocument } from '../core/serialize';
+import { validateDocument, type Violation } from '../core/validate';
+import { analyzeDocument, type LoadResult } from '../core/load/index';
 import type { OpContext, OpResult } from '../core/ops/common';
 import { createKuukan } from '../core/ops/kuukans';
 import { addItem } from '../core/ops/items';
@@ -16,7 +18,7 @@ import { attachOutline, splitEven } from '../core/ops/areas';
 import { createTag } from '../core/ops/tags';
 import { createCategory } from '../core/ops/categories';
 
-class MemoryBackend implements FileBackend {
+export class MemoryBackend implements FileBackend {
   readonly canOverwrite = true;
   private text: string;
   private lastModified = Date.now();
@@ -37,6 +39,10 @@ class MemoryBackend implements FileBackend {
   /** 開発者ツールから「外での変更」をまねるため。 */
   touchFromOutside(): void {
     this.lastModified += 1000;
+  }
+  /** 中身を見る（試験用。更新日時は変えない）。 */
+  peek(): string {
+    return this.text;
   }
 }
 
@@ -77,17 +83,70 @@ export function sampleDocument(): ArekokoDocument {
   return doc;
 }
 
+/**
+ * 開発者ツールと E2E 試験から使う口（`globalThis.arekokoMemory`。詳細設計(シナリオ) 2.2）。
+ * 試験は store.state を読むだけにして、操作は画面から行う。
+ */
+export interface ArekokoMemoryHook {
+  store: AppStore | null;
+  /** 見本のファイル（「ファイルを開く」で開く）。 */
+  sample: MemoryBackend;
+  /** 「新しく作る」「別の名前で保存」と queueOpen で作ったファイル（名前 → 保存先）。 */
+  files: Map<string, MemoryBackend>;
+  /** 次の「ファイルを開く」で、見本の代わりにこのファイルを開く（壊れたファイルの試験用）。 */
+  queueOpen(name: string, text: string): void;
+  /** 画面の文書の不変条件の違反（空なら健全）。 */
+  violations(): Violation[];
+  /** 保存先の中身と、それを読み込みの検査にかけた結果。name を省くと、今開いている文書の保存先。 */
+  readFile(name?: string): { text: string; kind: LoadResult['kind'] | 'empty' };
+}
+
+function hook(): ArekokoMemoryHook {
+  return (globalThis as unknown as { arekokoMemory: ArekokoMemoryHook }).arekokoMemory;
+}
+
+/** 画面が使う AppStore を口に入れる（main.ts から）。 */
+export function exposeStore(store: AppStore): void {
+  hook().store = store;
+}
+
 export function memoryDeps(): AppDeps {
   let settings: AppSettings = { autosave: true };
   const sample = new MemoryBackend('見本.json', serializeDocument(sampleDocument()));
-  (globalThis as { arekokoMemory?: unknown }).arekokoMemory = { sample };
+  const files = new Map<string, MemoryBackend>();
+  let queued: MemoryBackend | null = null;
+  const memory: ArekokoMemoryHook = {
+    store: null,
+    sample,
+    files,
+    queueOpen(name, text) {
+      queued = new MemoryBackend(name, text);
+      files.set(name, queued);
+    },
+    violations() {
+      const doc = memory.store?.state.doc;
+      return doc ? validateDocument(doc) : [];
+    },
+    readFile(name) {
+      const fileName = name ?? memory.store?.state.fileName ?? sample.name;
+      const backend = files.get(fileName) ?? (fileName === sample.name ? sample : undefined);
+      const text = backend?.peek() ?? '';
+      if (!text) return { text, kind: 'empty' };
+      return { text, kind: analyzeDocument(text, { newId, now: () => new Date().toISOString() }).kind };
+    },
+  };
+  (globalThis as unknown as { arekokoMemory: ArekokoMemoryHook }).arekokoMemory = memory;
   return {
     async pickFileToOpen() {
-      const { text, lastModified } = await sample.read();
-      return { backend: sample, text, stat: { lastModified } };
+      const backend = queued ?? sample;
+      queued = null;
+      const { text, lastModified } = await backend.read();
+      return { backend, text, stat: { lastModified } };
     },
     async pickFileToSave(name) {
-      return new MemoryBackend(name);
+      const backend = new MemoryBackend(name);
+      files.set(name, backend);
+      return backend;
     },
     supportsFileSystemAccess: () => true,
     listRecent: async () => [],

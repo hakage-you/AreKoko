@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getApp } from '../context';
   import { getViewUi } from './viewUi.svelte';
-  import type { Id, Item, ItemDrawing, Marker, Partition, Point, Shape } from '../../core/types';
+  import type { ArekokoDocument, Id, Item, ItemDrawing, Marker, Partition, Point, Shape } from '../../core/types';
   import { COORD_MAX } from '../../core/constants';
   import type { Polygon, Rect } from '../../geometry/types';
   import { buildAreaTree } from '../../core/indexes';
@@ -17,7 +17,7 @@
     lineSegments,
   } from '../../editor/view';
   import { moveEdge, addStep, edgeAt } from '../../editor/outline';
-  import { OpError, type OpContext } from '../../core/ops/common';
+  import type { OpContext, OpResult } from '../../core/ops/common';
   import { kuukanOfPlace } from '../../core/places';
   import {
     setItemDrawing,
@@ -821,95 +821,39 @@
     previewReshapePoints = null;
   }
 
-  // 操作実行ヘルパー（OpError を受け取って ui.message に反映）
+  // 操作実行ヘルパー（断られた理由は、トーストではなく図の上の案内 ui.message に出す）
+  function tryDrawingOp(op: (d: ArekokoDocument, ctx: OpContext) => OpResult): boolean {
+    const r = app.tryApply(op);
+    ui.message = r.ok ? null : r.message;
+    return r.ok;
+  }
+
   function applySetItemDrawing(targetId: Id, shape: Shape) {
-    if (!doc) return;
-    const dummyCtx: OpContext = { newId: () => '', now: () => '' };
-    try {
-      setItemDrawing(doc, targetId, { shape }, dummyCtx);
-    } catch (err: unknown) {
-      if (err instanceof OpError) {
-        ui.message = err.message;
-        return;
-      }
-      throw err;
-    }
-    const res = app.apply((d, ctx) => setItemDrawing(d, targetId, { shape }, ctx));
-    if (res) {
+    if (tryDrawingOp((d, ctx) => setItemDrawing(d, targetId, { shape }, ctx))) {
       ui.attachTarget = null;
       ui.selectedDrawing = targetId;
-      ui.message = null;
     }
   }
 
   function applyMoveItemDrawing(itemId: Id, dx: number, dy: number) {
-    if (!doc) return;
-    try {
-      moveItemDrawing(doc, itemId, dx, dy);
-    } catch (err: unknown) {
-      if (err instanceof OpError) {
-        ui.message = err.message;
-        return;
-      }
-      throw err;
-    }
-    const res = app.apply((d) => moveItemDrawing(d, itemId, dx, dy));
-    if (res) {
-      ui.message = null;
-    }
+    tryDrawingOp((d) => moveItemDrawing(d, itemId, dx, dy));
   }
 
   function applyRotateItemDrawing(step: 1 | -1) {
-    if (!doc || !ui.selectedDrawing) return;
+    if (!ui.selectedDrawing) return;
     const itemId = ui.selectedDrawing;
-    try {
-      rotateItemDrawing(doc, itemId, step);
-    } catch (err: unknown) {
-      if (err instanceof OpError) {
-        ui.message = err.message;
-        return;
-      }
-      throw err;
-    }
-    const res = app.apply((d) => rotateItemDrawing(d, itemId, step));
-    if (res) {
-      ui.message = null;
-    }
+    tryDrawingOp((d) => rotateItemDrawing(d, itemId, step));
   }
 
   function applyReshapeItemDrawing(itemId: Id, shape: Shape) {
-    if (!doc) return;
-    try {
-      reshapeItemDrawing(doc, itemId, shape);
-    } catch (err: unknown) {
-      if (err instanceof OpError) {
-        ui.message = err.message;
-        return;
-      }
-      throw err;
-    }
-    const res = app.apply((d) => reshapeItemDrawing(d, itemId, shape));
-    if (res) {
-      ui.message = null;
-    }
+    tryDrawingOp((d) => reshapeItemDrawing(d, itemId, shape));
   }
 
   function applyRemoveItemDrawing() {
-    if (!doc || !ui.selectedDrawing) return;
+    if (!ui.selectedDrawing) return;
     const itemId = ui.selectedDrawing;
-    try {
-      removeItemDrawing(doc, itemId);
-    } catch (err: unknown) {
-      if (err instanceof OpError) {
-        ui.message = err.message;
-        return;
-      }
-      throw err;
-    }
-    const res = app.apply((d) => removeItemDrawing(d, itemId));
-    if (res) {
+    if (tryDrawingOp((d) => removeItemDrawing(d, itemId))) {
       ui.selectedDrawing = null;
-      ui.message = null;
     }
   }
 

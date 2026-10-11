@@ -2,13 +2,10 @@
   import { getApp } from '../context';
   import {
     addTagToItems,
-    deleteItems,
     moveItems,
-    planDeleteItems,
     removeTagFromItems,
     setItemsCategory,
   } from '../../core/ops/items';
-  import { formatPlacePath } from '../../core/places';
   import type { Id } from '../../core/types';
   import PlacePicker from './PlacePicker.svelte';
   import CategoryPicker from './CategoryPicker.svelte';
@@ -39,26 +36,7 @@
   });
 
   function handleDelete(): void {
-    if (!$app.doc || selectedIds.length === 0) return;
-    const doc = $app.doc;
-    const relocations = planDeleteItems(doc, selectedIds);
-    const details = relocations.map((r) => {
-      const fromPath = formatPlacePath(doc, r.from);
-      const toPath = formatPlacePath(doc, r.to);
-      return `${fromPath} から ${r.items.length}件 → ${toPath}`;
-    });
-
-    app.confirm({
-      title: 'モノの削除',
-      message: `${count}件のモノを削除します。`,
-      details,
-      confirmLabel: '削除',
-      danger: true,
-      onConfirm: () => {
-        app.apply((d, ctx) => deleteItems(d, selectedIds, ctx));
-        app.setSelection([]);
-      },
-    });
+    app.requestDeleteSelection();
   }
 </script>
 

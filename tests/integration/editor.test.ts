@@ -68,16 +68,17 @@ describe('結合試験: クウカン編集 (段階5)', () => {
     const after = app.state.doc!;
     expectOnlyMoved(before, after, [item]);
     expect(after.membership.items.find(i => i.id === item)!.place).toBe(shelf);
-    expect(app.state.highlights.has(item)).toBe(true);
     expect(after.membership.areas.some(a => a.id === dan[2]!.id)).toBe(true); // 残ったエリアのIDは引き継ぐ
     expect(app.state.editor).toEqual({ kind: 'kuukan', kuukan: shelf });
 
     await clock.advance(1000);
     expectHealthy(app, file);
 
-    // 4. 置き換えは元に戻せる
+    // 4. 確定は画面をまたぐ操作なので、置き換えた後に元に戻すでは戻らない（A-03、TRS 付録B I-06）
+    expect(app.state.canUndo).toBe(false);
     app.undo();
-    expect(app.state.doc!.membership.items.find(i => i.id === item)!.place).toBe(dan[1]!.id);
+    expect(app.state.doc).toBe(after);
+    expect(app.state.doc!.membership.items.find(i => i.id === item)!.place).toBe(shelf);
   });
 
   it('E-K: 複製して元を残すと、IDの新しい「〇〇のコピー」ができ、元は変わらない（E5）', async () => {

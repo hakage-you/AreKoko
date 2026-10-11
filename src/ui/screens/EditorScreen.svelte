@@ -8,7 +8,7 @@
   import { confirmModes } from '../../editor/confirm';
   import { validateDraft } from '../../editor/draft';
   import { TEMPLATE_LIST } from '../../editor/templates';
-  import { displayName, formatPlacePath } from '../../core/places';
+  import { displayName } from '../../core/places';
 
   const app = getApp();
   const ui = createEditorUi();
@@ -102,7 +102,7 @@
 
     const modes = confirmModes(ed.draft);
     if (modes.length === 1 && modes[0]) {
-      app.confirmDraft(modes[0]);
+      app.requestConfirmDraft(modes[0]);
       return;
     }
 
@@ -113,39 +113,12 @@
 
   function handleConfirmKeep() {
     showDuplicateChoice = false;
-    app.confirmDraft('keep');
+    app.requestConfirmDraft('keep');
   }
 
   function handleConfirmReplace() {
     showDuplicateChoice = false;
-    const ed = $app.editor;
-    if (ed?.kind !== 'draft' || !$app.doc) return;
-
-    const plan = app.planDraftConfirm('replace');
-    const details: string[] = [];
-
-    if (plan) {
-      for (const aId of plan.removedAreas) {
-        const aName = displayName($app.doc, aId);
-        details.push(`消えるエリア: ${aName}`);
-      }
-      for (const r of plan.relocations) {
-        const fromPath = formatPlacePath($app.doc, r.from);
-        const toPath = formatPlacePath($app.doc, r.to);
-        details.push(`${fromPath} から ${r.items.length}件 → ${toPath}`);
-      }
-    }
-
-    app.confirm({
-      title: 'クウカンを置き換えますか？',
-      message: '元のクウカンをこの下書きの内容で置き換えます。',
-      details,
-      confirmLabel: '置き換える',
-      danger: true,
-      onConfirm: () => {
-        app.confirmDraft('replace');
-      },
-    });
+    app.requestConfirmDraft('replace');
   }
 
   function handleCancelDraft() {
@@ -179,7 +152,7 @@
     <div class="editor-header-right">
       {#if $app.editor?.kind === 'draft'}
         {#if draftViolations.length === 0}
-          <span class="confirm-note muted small">確定するまで文書は変わりません</span>
+          <span class="confirm-note muted small">確定するまで文書は変わりません。確定した後は「元に戻す」で戻せません</span>
         {/if}
         {#if draftViolations.length > 0 && cannotConfirmReason}
           <span class="confirm-error-message" title={cannotConfirmReason}>
