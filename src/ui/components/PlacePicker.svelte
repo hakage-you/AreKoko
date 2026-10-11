@@ -2,21 +2,35 @@
   import { autofocus } from '../actions';
   import { getApp } from '../context';
   import type { Id } from '../../core/types';
-  import { NIL_ID, UNSET_NAME, NAMELESS_NAME } from '../../core/constants';
-  import { getIndexes } from '../../core/indexes';
-  import { displayName, formatPlacePath, placeCandidates } from '../../core/places';
-  import { normalizeForMatch } from '../../search/normalize';
+  import { placeCandidates } from '../../core/places';
+  import {
+    groupPlaceTreeNodes,
+    searchPlaceCandidates,
+    type PlaceSection,
+    type PlaceSearchResult,
+  } from './placeTree';
 
   interface Props {
     title: string;
     itemIds: Id[];
     current?: Id | null;
+    activeKuukan?: Id | null;
     onSelect: (place: Id) => void;
     onClose: () => void;
   }
 
-  let { title, itemIds, current = null, onSelect, onClose }: Props = $props();
+  let {
+    title,
+    itemIds,
+    current = null,
+    activeKuukan = null,
+    onSelect,
+    onClose,
+  }: Props = $props();
   const app = getApp();
+
+  // 指定がなければ現在の表示中クウカンを使用
+  const effectiveActiveKuukan = $derived(activeKuukan ?? $app.view?.kuukan ?? null);
 
   let searchQuery = $state('');
 
@@ -35,119 +49,27 @@
 
   const isSearching = $derived(searchQuery.trim().length > 0);
 
-  const searchResults = $derived.by(() => {
+  const searchResults = $derived.by((): PlaceSearchResult[] => {
     const doc = $app.doc;
     if (!doc || !isSearching) return [];
-    const q = normalizeForMatch(searchQuery);
-    const results: { id: Id; name: string; path: string; isCurrent: boolean }[] = [];
-
-    for (const id of candidateIds) {
-      const name = displayName(doc, id);
-      const path = formatPlacePath(doc, id);
-      if (normalizeForMatch(name).includes(q) || normalizeForMatch(path).includes(q)) {
-        results.push({
-          id,
-          name,
-          path,
-          isCurrent: id === current,
-        });
-      }
-    }
-    return results;
+    return searchPlaceCandidates(
+      doc,
+      candidateIds,
+      searchQuery,
+      current,
+      effectiveActiveKuukan,
+    );
   });
 
-  interface FlatNode {
-    id: Id;
-    name: string;
-    depth: number;
-    isStorage?: boolean;
-    isCurrent: boolean;
-    isSelectable: boolean;
-  }
-
-  const treeNodes = $derived.by(() => {
+  const treeSections = $derived.by((): PlaceSection[] => {
     const doc = $app.doc;
     if (!doc || isSearching) return [];
-    const d = doc;
-    const indexes = getIndexes(doc);
-    const nodes: FlatNode[] = [];
-    const visited = new Set<Id>();
-
-    // 1. 未設定クウカン
-    if (candidateIds.has(NIL_ID)) {
-      nodes.push({
-        id: NIL_ID,
-        name: UNSET_NAME,
-        depth: 0,
-        isCurrent: current === NIL_ID,
-        isSelectable: true,
-      });
-    }
-
-    function traversePlace(placeId: Id, depth: number) {
-      // エリア
-      const areas =
-        indexes.areaById.has(placeId)
-          ? (indexes.childAreas.get(placeId) ?? [])
-          : d.membership.areas.filter((a) => a.kuukan === placeId && a.parent === null);
-
-      for (const area of areas) {
-        if (visited.has(area.id)) continue;
-        visited.add(area.id);
-
-        nodes.push({
-          id: area.id,
-          name: area.name,
-          depth,
-          isCurrent: current === area.id,
-          isSelectable: candidateIds.has(area.id),
-        });
-
-        traversePlace(area.id, depth + 1);
-      }
-
-      // 置かれた収納
-      const itemsInPlace = indexes.itemsByPlace.get(placeId) ?? [];
-      for (const it of itemsInPlace) {
-        const storageKuukan = indexes.kuukanByOwner.get(it.id);
-        if (!storageKuukan) continue;
-        if (visited.has(storageKuukan.id)) continue;
-        visited.add(storageKuukan.id);
-
-        nodes.push({
-          id: storageKuukan.id,
-          name: it.name,
-          depth,
-          isStorage: true,
-          isCurrent: current === storageKuukan.id,
-          isSelectable: candidateIds.has(storageKuukan.id),
-        });
-
-        traversePlace(storageKuukan.id, depth + 1);
-      }
-    }
-
-    // 2. 最上位クウカン
-    const topKuukans = doc.membership.kuukans.filter(
-      (k) => k.id !== NIL_ID && k.owner === null,
-    );
-
-    for (const k of topKuukans) {
-      if (visited.has(k.id)) continue;
-      visited.add(k.id);
-
-      nodes.push({
-        id: k.id,
-        name: k.name ?? NAMELESS_NAME,
-        depth: 0,
-        isCurrent: current === k.id,
-        isSelectable: candidateIds.has(k.id),
-      });
-
-      traversePlace(k.id, 1);
-    }
-
-    return nodes;
+    return groupPlaceTreeNodes({
+      doc,
+      candidateIds,
+      current,
+      activeKuukanId: effectiveActiveKuukan,
+    });
   });
 
   function handleKeydown(e: KeyboardEvent) {
@@ -194,42 +116,67 @@
               <button
                 type="button"
                 class="list-item"
+                class:active-kuukan-item={item.isActiveKuukan}
                 onclick={() => onSelect(item.id)}
               >
                 <div class="item-info">
                   <span class="item-name">{item.name}</span>
                   <span class="item-path muted small">{item.path}</span>
                 </div>
-                {#if item.isCurrent}
-                  <span class="chip accent small">現在</span>
-                {/if}
+                <div class="item-badges">
+                  {#if item.isActiveKuukan}
+                    <span class="chip accent-subtle small">表示中</span>
+                  {/if}
+                  {#if item.isCurrent}
+                    <span class="chip accent small">現在</span>
+                  {/if}
+                </div>
               </button>
             {/each}
           {/if}
         {:else}
-          {#if treeNodes.length === 0}
+          {#if treeSections.length === 0}
             <div class="empty muted">候補がありません</div>
           {:else}
-            {#each treeNodes as node (node.id)}
-              <button
-                type="button"
-                class="list-item tree-item"
-                style="padding-left: calc(var(--space-3) + {node.depth} * 20px);"
-                disabled={!node.isSelectable}
-                onclick={() => {
-                  if (node.isSelectable) onSelect(node.id);
-                }}
+            {#each treeSections as section (section.id)}
+              <div
+                class="tree-section"
+                class:is-active-section={section.type === 'active'}
+                class:is-unset-section={section.type === 'unset'}
               >
-                <div class="item-info">
-                  <span class="item-name">{node.name}</span>
-                  {#if node.isStorage}
-                    <span class="chip small">収納</span>
-                  {/if}
-                </div>
-                {#if node.isCurrent}
-                  <span class="chip accent small">現在</span>
+                {#if section.title}
+                  <div class="section-header">
+                    <span class="section-title">{section.title}</span>
+                    {#if section.badge}
+                      <span class="chip accent small section-badge">{section.badge}</span>
+                    {/if}
+                  </div>
                 {/if}
-              </button>
+                <div class="section-nodes">
+                  {#each section.nodes as node (node.id)}
+                    <button
+                      type="button"
+                      class="list-item tree-item"
+                      class:is-active-root={section.type === 'active' && node.depth === 0}
+                      style="padding-left: calc(var(--space-3) + {node.depth} * 16px);"
+                      disabled={!node.isSelectable}
+                      onclick={() => {
+                        if (node.isSelectable) onSelect(node.id);
+                      }}
+                    >
+                      <div class="item-info">
+                        <span class="item-name">{node.name}</span>
+                        {#if node.isStorage}
+                          <span class="chip small">収納</span>
+                        {/if}
+                      </div>
+                      {#if node.isCurrent}
+                        <span class="chip accent small">現在</span>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              </div>
             {/each}
           {/if}
         {/if}
@@ -269,6 +216,77 @@
     flex-direction: column;
     gap: var(--space-1);
     overflow-y: auto;
+  }
+
+  .tree-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tree-section.is-active-section {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .tree-section.is-active-section .list-item:hover:not(:disabled) {
+    background: var(--surface);
+  }
+
+  .tree-section.is-unset-section {
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-2);
+    border-bottom: 1px dashed var(--border);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    margin-bottom: 2px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  .is-active-section .section-title {
+    color: var(--accent);
+  }
+
+  .section-nodes {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .is-active-root {
+    font-weight: 600;
+  }
+
+  .item-badges {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex-shrink: 0;
+  }
+
+  .chip.accent-subtle {
+    background: var(--surface);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  .active-kuukan-item {
+    background: var(--accent-soft);
   }
 
   .list-item {
