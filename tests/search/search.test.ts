@@ -243,6 +243,21 @@ describe('searchItems', () => {
       const results = searchItems(doc, { text: '　デンチ　　備蓄　' });
       expect(results.map(r => r.id)).toEqual([ids.battery]);
     });
+
+    it('名前の語と概要欄の語を組み合わせた複数語（AND）検索ができる', () => {
+      const { doc, ids } = createSearchTestDoc();
+      // 名前「デンチ単3」 + 概要「備蓄用 12本パック」
+      const results = searchItems(doc, { text: 'デンチ 備蓄' });
+      expect(results.map(r => r.id)).toEqual([ids.battery]);
+    });
+
+    it('概要欄に含まれるカタカナをひらがなで検索できる', () => {
+      const { doc, ids } = createSearchTestDoc();
+      // 懐中電灯の概要: 'LED 単3デンチ式'（デンチ -> でんち）
+      // batteryの名前「デンチ単3」とflashlightの概要「LED 単3デンチ式」の両方にヒットする
+      const results = searchItems(doc, { text: 'でんち' });
+      expect(results.map(r => r.id)).toEqual([ids.battery, ids.flashlight]);
+    });
   });
 
   describe('カテゴリ検索（category）', () => {

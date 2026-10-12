@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { sampleDocument } from '../../src/core/sample';
 import { validateDocument } from '../../src/core/validate';
-import { leafAreasOfKuukan } from '../../src/core/places';
+import { leafAreasOfKuukan, formatPlacePath } from '../../src/core/places';
+import { searchItems } from '../../src/search/search';
+import { quickSearch } from '../../src/view/model';
 
 describe('sampleDocument', () => {
   it('見本データは不変条件を満たす', () => {
@@ -93,4 +95,54 @@ describe('sampleDocument', () => {
     expect(dan3Items.map(i => i.name)).toContain('工具箱');
     expect(dan3Items.map(i => i.name)).toContain('予備タオル');
   });
+
+  it('デスクの上にデジタル時計（収納）があり、中に充電式乾電池（概要: エネループ）が配置されている', () => {
+    const doc = sampleDocument();
+    const clock = doc.membership.items.find(i => i.name === 'デジタル時計');
+    expect(clock).toBeDefined();
+
+    // デジタル時計に描画があること
+    const drawing = doc.drawing.items.find(d => d.item === clock!.id);
+    expect(drawing).toBeDefined();
+    expect(drawing!.shape.type).toBe('rect');
+
+    // デジタル時計が収納として設定されていること
+    const clockKuukan = doc.membership.kuukans.find(k => k.owner === clock!.id);
+    expect(clockKuukan).toBeDefined();
+
+    // デジタル時計の中に充電式乾電池があり、概要欄にエネループが書かれていること
+    const battery = doc.membership.items.find(i => i.place === clockKuukan!.id);
+    expect(battery).toBeDefined();
+    expect(battery!.name).toBe('充電式乾電池');
+    expect(battery!.summary).toBe('エネループ');
+    expect(battery!.qty).toBe(2);
+  });
+
+  it('見本データで「エネループ」を検索すると充電式乾電池がヒットし、場所がデジタル時計の中とわかる', () => {
+    const doc = sampleDocument();
+    const results = searchItems(doc, { text: 'エネループ' });
+    expect(results).toHaveLength(1);
+    expect(results[0]!.name).toBe('充電式乾電池');
+    expect(results[0]!.summary).toBe('エネループ');
+
+    // 置き場経路に「Room A」「デスク周り」「デジタル時計」が含まれること
+    const pathText = formatPlacePath(doc, results[0]!.place);
+    expect(pathText).toContain('Room A');
+    expect(pathText).toContain('デスク周り');
+    expect(pathText).toContain('デジタル時計');
+  });
+
+  it('Room A で「エネループ」を簡易検索すると、デジタル時計の中に1件あることが判定される', () => {
+    const doc = sampleDocument();
+    const roomA = doc.membership.kuukans.find(k => k.name === 'Room A')!;
+    const clock = doc.membership.items.find(i => i.name === 'デジタル時計')!;
+
+    const quick = quickSearch(doc, roomA.id, 'エネループ');
+    // デジタル時計が収納として1件ヒットすること
+    expect(quick.insideStorage.get(clock.id)).toBe(1);
+    // デスク周りエリアにカウントされること
+    expect(quick.perPlace.get(clock.place)).toBe(1);
+  });
 });
+
+

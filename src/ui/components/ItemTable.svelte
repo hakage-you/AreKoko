@@ -247,8 +247,15 @@ import type { Item } from '../../core/types';
                 {#if row.item.qty !== undefined}
                   <span class="item-qty muted">×{row.item.qty}</span>
                 {/if}
+                {#if row.item.summary}
+                  <span class="item-summary">{row.item.summary}</span>
+                {/if}
               </div>
               <div class="mobile-sub muted small">
+                {#if row.item.summary}
+                  <span class="mobile-summary">{row.item.summary}</span>
+                  <span class="mobile-sep">・</span>
+                {/if}
                 {$app.doc ? formatPlacePath($app.doc, row.item.place) : ''}
               </div>
             </div>
@@ -497,12 +504,35 @@ import type { Item } from '../../core/types';
     white-space: nowrap;
   }
 
+  .item-summary {
+    color: var(--text-muted);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: var(--space-1);
+    font-weight: normal;
+    flex: 0 1 auto;
+    min-width: 0;
+    opacity: 0.85;
+  }
+
   .mobile-sub {
     display: none;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1.2;
+  }
+
+  .mobile-summary {
+    color: var(--text-muted);
+    font-weight: normal;
+  }
+
+  .mobile-sep {
+    margin: 0 2px;
+    opacity: 0.6;
   }
 
   .col-place {

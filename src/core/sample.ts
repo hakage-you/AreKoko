@@ -83,6 +83,21 @@ export function sampleDocument(): ArekokoDocument {
     shape: { type: 'rect', x: 1800, y: 2800, w: 1200, h: 900 },
   }, ctx));
 
+  const [clock] = run(d => addItem(d, { name: 'デジタル時計', place: areaDesk!, category: catAppliance! }, ctx));
+  run(d => setItemDrawing(d, clock!, {
+    shape: { type: 'rect', x: 3200, y: 2600, w: 600, h: 400 },
+  }, ctx));
+
+  const [clockKuukan] = run(d => makeStorage(d, clock!, {}, ctx));
+  run(d => addItem(d, {
+    name: '充電式乾電池',
+    place: clockKuukan!,
+    category: catBattery!,
+    tags: [tagConsumable!],
+    summary: 'エネループ',
+    qty: 2,
+  }, ctx));
+
   const [chair] = run(d => addItem(d, { name: 'デスクチェア', place: areaDesk!, category: catFurniture! }, ctx));
   run(d => setItemDrawing(d, chair!, {
     shape: { type: 'point', at: [2400, 4500] },
