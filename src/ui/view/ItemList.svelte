@@ -194,7 +194,7 @@
       if (g.areaId === area) return true;
       if (!g.areaId) return false;
       let curr = areaMap.get(g.areaId);
-      while (curr && curr.parent !== kuukan) {
+      while (curr && curr.parent && curr.parent !== kuukan) {
         if (curr.parent === area) return true;
         curr = areaMap.get(curr.parent);
       }
