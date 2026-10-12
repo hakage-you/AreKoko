@@ -6,7 +6,7 @@ import { buildAreaTree } from './indexes';
 import type { ArekokoDocument, Id } from './types';
 import type { Polygon } from '../geometry/types';
 import { validateOutline } from '../geometry/polygon';
-import { computeRegions } from '../geometry/regions';
+import { computeRegions, type ComputeRegionsResult } from '../geometry/regions';
 import { isValidShape } from '../geometry/shape';
 import { checkSchema } from './schema';
 
@@ -22,7 +22,7 @@ export interface Violation {
 export function validateKuukanDrawing(
   doc: ArekokoDocument,
   kuukan: Id,
-): { ok: true; regions: Map<Id, Polygon> } | { ok: false; reason: string } {
+): ComputeRegionsResult {
   const kd = doc.drawing.kuukans.find(k => k.kuukan === kuukan);
   if (!kd) {
     return { ok: false, reason: 'クウカンの描画情報がありません' };
@@ -153,9 +153,10 @@ export function validateDocument(doc: ArekokoDocument): Violation[] {
   for (const k of doc.membership.kuukans) {
     if (k.owner !== null) {
       if (!itemById.has(k.owner)) {
+        const kLabel = k.name ? `クウカン「${k.name}」` : 'クウカン';
         violations.push({
           code: 'ownerMissing',
-          message: `クウカン「${k.id}」の持ち主のモノが見つかりません`,
+          message: `${kLabel}の持ち主のモノが見つかりません`,
           ids: [k.id, k.owner],
         });
       } else {
@@ -170,7 +171,7 @@ export function validateDocument(doc: ArekokoDocument): Violation[] {
       if (typeof k.name !== 'string') {
         violations.push({
           code: 'kuukanMissingName',
-          message: `どこにも置かれていないクウカン「${k.id}」に名前がありません`,
+          message: 'どこにも置かれていないクウカンに名前がありません',
           ids: [k.id],
         });
       }
@@ -179,9 +180,11 @@ export function validateDocument(doc: ArekokoDocument): Violation[] {
 
   for (const [ownerId, kuukanIds] of ownerToKuukans) {
     if (kuukanIds.length > 1) {
+      const ownerItem = itemById.get(ownerId);
+      const ownerLabel = ownerItem ? `モノ「${ownerItem.name}」` : 'モノ';
       violations.push({
         code: 'ownerShared',
-        message: `モノ「${ownerId}」が複数のクウカンを持っています`,
+        message: `${ownerLabel}が複数のクウカンを持っています`,
         ids: kuukanIds,
       });
     }
@@ -392,10 +395,13 @@ export function validateDocument(doc: ArekokoDocument): Violation[] {
       });
     }
     if (kd.kuukan !== NIL_ID && kuukanById.has(kd.kuukan)) {
+      const kuukanName = kuukanById.get(kd.kuukan)?.name;
+      const kuukanLabel = kuukanName ? `クウカン「${kuukanName}」` : 'クウカン';
+
       if (seenKuukanDrawing.has(kd.kuukan)) {
         violations.push({
           code: 'duplicateKuukanDrawing',
-          message: `クウカン「${kd.kuukan}」に重複した描画があります`,
+          message: `${kuukanLabel}に重複した描画があります`,
           ids: [kd.kuukan],
         });
       } else {
@@ -407,7 +413,7 @@ export function validateDocument(doc: ArekokoDocument): Violation[] {
       if (!outlineResult.ok) {
         violations.push({
           code: 'invalidOutline',
-          message: `クウカン「${kd.kuukan}」の外形が正しくありません: ${outlineResult.reason}`,
+          message: `${kuukanLabel}の外形が正しくありません: ${outlineResult.reason}`,
           ids: [kd.kuukan],
         });
       }
@@ -415,7 +421,7 @@ export function validateDocument(doc: ArekokoDocument): Violation[] {
       if (typeof kd.aspect !== 'number' || kd.aspect <= 0 || !Number.isFinite(kd.aspect)) {
         violations.push({
           code: 'invalidAspect',
-          message: `クウカン「${kd.kuukan}」のアスペクト比が正しくありません`,
+          message: `${kuukanLabel}のアスペクト比が正しくありません`,
           ids: [kd.kuukan],
         });
       }
@@ -425,10 +431,27 @@ export function validateDocument(doc: ArekokoDocument): Violation[] {
   for (const kId of drawingKuukanIds) {
     const res = validateKuukanDrawing(doc, kId);
     if (!res.ok) {
+      let targetLabel = '';
+      if (res.failedAreaId) {
+        if (res.failedAreaId === kId) {
+          const k = kuukanById.get(kId);
+          targetLabel = k?.name ? `クウカン「${k.name}」` : '';
+        } else {
+          const a = areaById.get(res.failedAreaId);
+          if (a?.name) {
+            targetLabel = `エリア「${a.name}」`;
+          }
+        }
+      }
+      if (!targetLabel) {
+        const k = kuukanById.get(kId);
+        targetLabel = k?.name ? `クウカン「${k.name}」` : 'クウカン';
+      }
+
       violations.push({
         code: 'partitionMismatch',
-        message: `クウカン「${kId}」の仕切りがエリアの木と一致しません: ${res.reason}`,
-        ids: [kId],
+        message: `${targetLabel}: ${res.reason}`,
+        ids: [kId, ...(res.failedAreaId ? [res.failedAreaId] : [])],
       });
     }
   }

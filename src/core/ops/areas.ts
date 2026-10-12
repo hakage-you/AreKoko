@@ -237,7 +237,7 @@ export function splitEven(
   const targetArea = targetKuukan ? undefined : doc.membership.areas.find(a => a.id === node);
 
   if (!targetKuukan && !targetArea) {
-    throw new OpError('notFound', `節が見つかりません: ${node}`);
+    throw new OpError('notFound', 'エリアが見つかりません');
   }
 
   const isRoot = targetKuukan !== undefined;
@@ -254,13 +254,13 @@ export function splitEven(
     throw new OpError('noDrawing', 'クウカンの描画がありません');
   }
 
-  // 子のない節であることを確認
+  // 分割されていないエリアであることを確認
   const hasChildAreas = isRoot
     ? doc.membership.areas.some(a => a.kuukan === kuukanId && a.parent === null)
     : doc.membership.areas.some(a => a.parent === node);
   const hasPartition = doc.drawing.partitions.some(p => p.area === node);
   if (hasChildAreas || hasPartition) {
-    throw new OpError('notLeaf', '子のない節ではありません');
+    throw new OpError('notLeaf', 'すでに分割されているエリアです');
   }
 
   if (axis !== 'x' && axis !== 'y') {
@@ -280,7 +280,7 @@ export function splitEven(
 
   const poly = regionsRes.regions.get(node);
   if (!poly) {
-    throw new OpError('notFound', `節の領域が見つかりません: ${node}`);
+    throw new OpError('notFound', 'エリアの領域が見つかりません');
   }
 
   if (!isRectangle(poly)) {
@@ -363,7 +363,7 @@ export function planDeleteLine(
 
   const partition = doc.drawing.partitions.find(p => p.area === node);
   if (!partition) {
-    throw new OpError('notFound', `節「${node}」の仕切りが見つかりません`);
+    throw new OpError('notFound', '仕切りが見つかりません');
   }
 
   if (!Number.isInteger(lineIndex) || lineIndex < 0 || lineIndex >= partition.at.length) {
@@ -412,7 +412,7 @@ export function deleteLine(
 
   const partition = doc.drawing.partitions.find(p => p.area === node);
   if (!partition) {
-    throw new OpError('notFound', `節「${node}」の仕切りが見つかりません`);
+    throw new OpError('notFound', '仕切りが見つかりません');
   }
 
   if (!Number.isInteger(lineIndex) || lineIndex < 0 || lineIndex >= partition.at.length) {
@@ -520,7 +520,7 @@ export function deleteLine(
     }
     const nodePoly = regionsRes.regions.get(node);
     if (!nodePoly) {
-      throw new OpError('notFound', `節の領域が見つかりません: ${node}`);
+      throw new OpError('notFound', 'エリアの領域が見つかりません');
     }
     const rect = boundingRect(nodePoly);
     if (partition.axis === 'x') {
@@ -602,7 +602,7 @@ export function moveLine(
 
   const partition = doc.drawing.partitions.find(p => p.area === node);
   if (!partition) {
-    throw new OpError('notFound', `節「${node}」の仕切りが見つかりません`);
+    throw new OpError('notFound', '仕切りが見つかりません');
   }
 
   if (!Number.isInteger(lineIndex) || lineIndex < 0 || lineIndex >= partition.at.length) {
@@ -616,7 +616,7 @@ export function moveLine(
   const targetKuukan = doc.membership.kuukans.find(k => k.id === node);
   const targetArea = targetKuukan ? undefined : doc.membership.areas.find(a => a.id === node);
   if (!targetKuukan && !targetArea) {
-    throw new OpError('notFound', `節が見つかりません: ${node}`);
+    throw new OpError('notFound', 'エリアが見つかりません');
   }
 
   const kuukanId = targetKuukan !== undefined ? targetKuukan.id : targetArea!.kuukan;

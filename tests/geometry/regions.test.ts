@@ -189,20 +189,20 @@ describe('computeRegions', () => {
       if (!res2.ok) expect(res2.reason).toMatch(/内部にありません/);
     });
 
-    it('木にない節の仕切り、または子を持たない節の仕切り', () => {
+    it('存在しないエリアの仕切り、または分割されていないエリアの仕切り', () => {
       const res1 = computeRegions(RECT_OUTLINE, tree, [
         { area: 'room', axis: 'x', at: [5000], seed: [5000, 5000], children: ['a1', 'a2'] },
         { area: 'unknown', axis: 'x', at: [3000], seed: [3000, 3000], children: ['x1', 'x2'] },
       ]);
       expect(res1.ok).toBe(false);
-      if (!res1.ok) expect(res1.reason).toMatch(/木に存在しません/);
+      if (!res1.ok) expect(res1.reason).toMatch(/存在しません/);
 
       const res2 = computeRegions(RECT_OUTLINE, tree, [
         { area: 'room', axis: 'x', at: [5000], seed: [5000, 5000], children: ['a1', 'a2'] },
         { area: 'a1', axis: 'x', at: [2500], seed: [2500, 2500], children: ['sub1', 'sub2'] },
       ]);
       expect(res2.ok).toBe(false);
-      if (!res2.ok) expect(res2.reason).toMatch(/子を持たない節/);
+      if (!res2.ok) expect(res2.reason).toMatch(/分割されていないエリア/);
     });
   });
 
