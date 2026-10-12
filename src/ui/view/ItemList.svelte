@@ -184,6 +184,29 @@
     });
   });
 
+  // 表示対象のグループ（エリア絞り込み中は選択エリアとその配下のみに絞り込み、他エリアは非表示にしてガイダンスを出す）
+  const visibleGroups = $derived.by(() => {
+    if (!itemGroupingResult.hasAreas) return [];
+    if (area === null) return itemGroupingResult.groups;
+    if (!$app.doc) return itemGroupingResult.groups;
+    const areaMap = new Map($app.doc.membership.areas.map((a) => [a.id, a]));
+    return itemGroupingResult.groups.filter((g) => {
+      if (g.areaId === area) return true;
+      if (!g.areaId) return false;
+      let curr = areaMap.get(g.areaId);
+      while (curr && curr.parent !== kuukan) {
+        if (curr.parent === area) return true;
+        curr = areaMap.get(curr.parent);
+      }
+      return false;
+    });
+  });
+
+  const hiddenAreaCount = $derived.by(() => {
+    if (area === null || !itemGroupingResult.hasAreas) return 0;
+    return Math.max(0, itemGroupingResult.groups.length - visibleGroups.length);
+  });
+
   // 折りたたまれているグループのキー集合（クウカンそのものに置いたモノのグループは '__unset__'）
   let collapsedAreaIds = $state(new Set<string>());
 
@@ -198,8 +221,8 @@
   }
 
   const isAllCollapsed = $derived.by(() => {
-    if (!itemGroupingResult.hasAreas || itemGroupingResult.groups.length === 0) return false;
-    return itemGroupingResult.groups.every((g) =>
+    if (!itemGroupingResult.hasAreas || visibleGroups.length === 0) return false;
+    return visibleGroups.every((g) =>
       collapsedAreaIds.has(g.areaId ?? '__unset__'),
     );
   });
@@ -209,7 +232,7 @@
       collapsedAreaIds = new Set();
     } else {
       collapsedAreaIds = new Set(
-        itemGroupingResult.groups.map((g) => g.areaId ?? '__unset__'),
+        visibleGroups.map((g) => g.areaId ?? '__unset__'),
       );
     }
   }
@@ -230,6 +253,7 @@
       }, 50);
     }
   });
+
 </script>
 
 <div class="item-list-container">
@@ -370,33 +394,43 @@
         role="button"
       >
         <div class="row-main">
-          <div class="item-primary">
-            {#if storageKuukan}
-              <span class="badge badge-storage">収納</span>
-            {/if}
-            <span class="item-name">{item.name}</span>
-            {#if item.qty !== undefined}
-              <span class="item-qty">×{item.qty}</span>
-            {/if}
-          </div>
+          <div class="row-content">
+            <div class="item-primary">
+              {#if storageKuukan}
+                <span class="badge badge-storage">収納</span>
+              {/if}
+              <span class="item-name">{item.name}</span>
+              {#if item.qty !== undefined}
+                <span class="item-qty">×{item.qty}</span>
+              {/if}
+              {#if item.summary}
+                <span class="item-summary">{item.summary}</span>
+              {/if}
+            </div>
 
-          <div class="item-meta">
-            {#if showPlace}
-              <span class="chip small place-chip">{showPlace}</span>
-            {/if}
-            {#if item.category && $app.doc}
-              {@const cat = $app.doc.membership.categories.find((c) => c.id === item.category)}
-              <span class="chip small" style={getBadgeStyle(cat?.color)}>
-                {cat?.name ?? categoryName}
-              </span>
-            {/if}
-            {#if item.tags.length > 0 && $app.doc}
-              {#each item.tags as tid (tid)}
-                {@const tag = $app.doc.membership.tags.find((t) => t.id === tid)}
-                <span class="chip small" style={getBadgeStyle(tag?.color)}>
-                  {tag?.name ?? tid}
-                </span>
-              {/each}
+            {#if item.category || item.tags.length > 0 || showPlace}
+              <div class="item-sub-row">
+                {#if showPlace}
+                  <span class="sub-place">{showPlace}</span>
+                {/if}
+                {#if item.category && $app.doc}
+                  {@const cat = $app.doc.membership.categories.find((c) => c.id === item.category)}
+                  <span
+                    class="sub-category"
+                    style={cat?.color ? `color: ${cat.color};` : ''}
+                  >
+                    {cat?.name ?? categoryName}
+                  </span>
+                {/if}
+                {#if item.tags.length > 0 && $app.doc}
+                  {#each item.tags as tid (tid)}
+                    {@const tag = $app.doc.membership.tags.find((t) => t.id === tid)}
+                    <span class="sub-tag">
+                      #{tag?.name ?? tid}
+                    </span>
+                  {/each}
+                {/if}
+              </div>
             {/if}
           </div>
 
@@ -420,16 +454,18 @@
               {#if insideCount !== undefined}
                 <span class="chip small muted">中に{insideCount}件</span>
               {/if}
-              <button
-                type="button"
-                class="small ghost open-storage-btn"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  app.openView(storageKuukan.id);
-                }}
-              >
-                開く
-              </button>
+              {#if !$app.view?.placing}
+                <button
+                  type="button"
+                  class="small ghost open-storage-btn"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    app.openView(storageKuukan.id);
+                  }}
+                >
+                  開く
+                </button>
+              {/if}
             {/if}
 
             {#if $app.view?.placing}
@@ -530,7 +566,7 @@
     {:else}
       <!-- エリア分割がある部屋ではアコーディオン表示 -->
       <div class="area-groups-list">
-        {#each itemGroupingResult.groups as group (group.areaId ?? '__unset__')}
+        {#each visibleGroups as group (group.areaId ?? '__unset__')}
           {@const gKey = group.areaId ?? '__unset__'}
           {@const isCollapsed = collapsedAreaIds.has(gKey)}
           <div
@@ -567,6 +603,11 @@
             {/if}
           </div>
         {/each}
+        {#if area !== null && hiddenAreaCount > 0}
+          <div class="area-filter-hidden-notice">
+            （エリア絞り込みにより他 {hiddenAreaCount} 件のエリアを非表示中）
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -715,9 +756,18 @@
   .row-main {
     display: flex;
     align-items: center;
-    min-height: var(--touch);
+    justify-content: space-between;
+    min-height: 46px;
     padding: var(--space-2) var(--space-3);
     gap: var(--space-2);
+  }
+
+  .row-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
   }
 
   .item-primary {
@@ -726,7 +776,34 @@
     gap: var(--space-1);
     font-weight: 500;
     min-width: 0;
-    flex: 1;
+  }
+
+  .item-sub-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 11px;
+    line-height: 1.2;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .sub-category {
+    font-weight: normal;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+
+  .sub-tag,
+  .sub-place {
+    color: var(--text-muted);
+    font-size: 11px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    opacity: 0.7;
   }
 
   .badge {
@@ -753,6 +830,19 @@
     white-space: nowrap;
   }
 
+  .item-summary {
+    color: var(--text-muted);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: var(--space-2);
+    font-weight: normal;
+    flex: 0 1 auto;
+    min-width: 0;
+    opacity: 0.85;
+  }
+
   .item-qty {
     font-size: var(--font-size-small);
     color: var(--text-muted);
@@ -760,16 +850,6 @@
     flex-shrink: 0;
   }
 
-  .item-meta {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    flex-shrink: 0;
-  }
-
-  .place-chip {
-    background: var(--surface-2);
-  }
 
   .item-actions {
     display: flex;
@@ -777,6 +857,41 @@
     gap: var(--space-1);
     flex-shrink: 0;
     margin-left: auto;
+  }
+
+  .open-storage-btn,
+  .select-drawing-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 2px var(--space-2);
+    font-size: var(--font-size-small);
+    border-radius: var(--radius-small);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+  }
+
+  .open-storage-btn:hover,
+  .select-drawing-btn:hover {
+    background: var(--surface-2);
+    border-color: var(--border-strong, var(--border));
+  }
+
+  .open-storage-btn:active,
+  .select-drawing-btn:active {
+    background: var(--surface-3, var(--surface-2));
+    transform: translateY(1px);
+  }
+
+  .select-drawing-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
   }
 
   .offset-btn {
@@ -926,6 +1041,14 @@
     text-align: center;
     color: var(--text-muted);
     font-style: italic;
+  }
+
+  .area-filter-hidden-notice {
+    text-align: center;
+    padding: var(--space-3) var(--space-2);
+    font-size: var(--font-size-small);
+    color: var(--text-muted);
+    user-select: none;
   }
 
   @media (max-width: 767.98px) {

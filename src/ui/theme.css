@@ -22,6 +22,14 @@ html[data-theme='light'] {
   --focus: #3d8bfd;
   --overlay: rgba(20, 18, 15, 0.45);
 
+  /* エリア塗り色（間取りの部屋・区画） */
+  --area-fill-0: rgba(47, 111, 94, 0.10);
+  --area-fill-1: rgba(61, 139, 253, 0.10);
+  --area-fill-2: rgba(138, 90, 0, 0.10);
+  --area-fill-3: rgba(179, 65, 46, 0.10);
+  --area-fill-4: rgba(120, 80, 180, 0.10);
+  --area-fill-5: rgba(30, 150, 150, 0.10);
+
   /* 文字 */
   --font: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic UI', sans-serif;
   --font-size: 15px;
@@ -67,6 +75,14 @@ html[data-theme='light'] {
     --focus: #79aefe;
     --overlay: rgba(0, 0, 0, 0.6);
     --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+    /* エリア塗り色（ダークモード：視認性を担保する明度・不透明度） */
+    --area-fill-0: rgba(108, 195, 168, 0.22);
+    --area-fill-1: rgba(121, 174, 254, 0.22);
+    --area-fill-2: rgba(240, 192, 96, 0.22);
+    --area-fill-3: rgba(240, 138, 118, 0.22);
+    --area-fill-4: rgba(186, 140, 245, 0.22);
+    --area-fill-5: rgba(70, 200, 200, 0.22);
   }
 }
 
@@ -89,6 +105,13 @@ html[data-theme='dark'] {
   --focus: #79aefe;
   --overlay: rgba(0, 0, 0, 0.6);
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+  --area-fill-0: rgba(108, 195, 168, 0.22);
+  --area-fill-1: rgba(121, 174, 254, 0.22);
+  --area-fill-2: rgba(240, 192, 96, 0.22);
+  --area-fill-3: rgba(240, 138, 118, 0.22);
+  --area-fill-4: rgba(186, 140, 245, 0.22);
+  --area-fill-5: rgba(70, 200, 200, 0.22);
 }
 
 *,
@@ -213,6 +236,12 @@ label {
 .chip.accent {
   background: var(--accent-soft);
   border-color: var(--accent);
+}
+.chip.small {
+  min-height: 22px;
+  padding: 0 var(--space-2);
+  font-size: 11px;
+  line-height: 1;
 }
 
 /* ダイアログ */

@@ -134,11 +134,6 @@
 <div class="editor-screen">
   <header class="editor-header">
     <div class="editor-header-left">
-      {#if $app.editor?.kind === 'draft'}
-        <button type="button" class="ghost small" onclick={handleCancelDraft} title="下書きを捨てて、開く前の画面に戻ります">
-          下書きを捨てる
-        </button>
-      {/if}
       <h2 class="editor-title">{title}</h2>
       <div class="history-buttons">
         <!-- 開いて最初の操作などで押せるようになったら、短く光らせる（下書きで線を消すときは確認しないかわり。TRS 付録B I-18） -->
@@ -157,15 +152,25 @@
             {cannotConfirmReason}
           </span>
         {/if}
-        <button
-          type="button"
-          class="primary"
-          disabled={draftViolations.length > 0}
-          onclick={handleConfirmClick}
-          title="下書きを文書に入れます"
-        >
-          確定する
-        </button>
+        <div class="draft-action-buttons">
+          <button
+            type="button"
+            class="ghost discard-draft-btn"
+            onclick={handleCancelDraft}
+            title="下書きを捨てて、開く前の画面に戻ります"
+          >
+            下書きを捨てる
+          </button>
+          <button
+            type="button"
+            class="primary confirm-draft-btn"
+            disabled={draftViolations.length > 0}
+            onclick={handleConfirmClick}
+            title="下書きを文書に入れます"
+          >
+            確定する
+          </button>
+        </div>
       {:else}
         <button
           type="button"
@@ -325,6 +330,26 @@
     align-items: center;
     gap: var(--space-3);
     flex-shrink: 0;
+  }
+
+  .draft-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .discard-draft-btn {
+    white-space: nowrap;
+    border-radius: var(--radius-small);
+  }
+
+  .discard-draft-btn:hover {
+    color: var(--danger);
+  }
+
+  .confirm-draft-btn {
+    white-space: nowrap;
   }
 
   .confirm-error-message {

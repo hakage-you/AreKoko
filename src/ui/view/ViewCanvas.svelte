@@ -404,12 +404,12 @@
   }
 
   const AREA_FILLS = [
-    'rgba(47, 111, 94, 0.08)',
-    'rgba(61, 139, 253, 0.08)',
-    'rgba(138, 90, 0, 0.08)',
-    'rgba(179, 65, 46, 0.08)',
-    'rgba(120, 80, 180, 0.08)',
-    'rgba(30, 150, 150, 0.08)',
+    'var(--area-fill-0)',
+    'var(--area-fill-1)',
+    'var(--area-fill-2)',
+    'var(--area-fill-3)',
+    'var(--area-fill-4)',
+    'var(--area-fill-5)',
   ];
 
   // 描画の形を多角形の頂点列に変換（長方形は4点の多角形として扱う）
@@ -516,10 +516,10 @@
 
   function handlePointerDown(e: PointerEvent) {
     if (!svgEl || !kuukanDrawing) return;
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
 
     touchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touchPointers.size === 2) {
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
       const pts = Array.from(touchPointers.values());
       const p1 = pts[0]!;
       const p2 = pts[1]!;
@@ -541,6 +541,7 @@
     if (isPlacing) {
       // 1. 付ける相手がいるとき
       if (ui.attachTarget !== null) {
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
         if (ui.attachTool === 'rect') {
           activeDrag = { kind: 'attachRect', startP: snapPoint(pRatio) };
         } else {
@@ -556,6 +557,7 @@
         .find((entry) => hitDrawing(entry, pRatio));
 
       if (hitEntry) {
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
         ui.selectedDrawing = hitEntry.drawing.item;
         ui.detailToRestore = hitEntry.drawing.item;
         ui.message = null;
@@ -608,13 +610,25 @@
         return;
       }
 
-      // 空白領域なら pan
-      activeDrag = { kind: 'pan', lastX: e.clientX, lastY: e.clientY };
+      // 空白領域なら pan（ただしタッチ時は1本指スクロールを優先しpanしない）
+      if (e.pointerType !== 'touch') {
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        activeDrag = { kind: 'pan', lastX: e.clientX, lastY: e.clientY };
+      } else {
+        activeDrag = null;
+      }
       return;
     }
 
-    // 配置モードでないときは移動（3px以上動けば pan）
-    activeDrag = { kind: 'pan', lastX: e.clientX, lastY: e.clientY };
+    // 配置モードでないとき：
+    // タッチ操作（1本指）で空白領域を押した場合はページの縦スクロールを優先する
+    // マウスの場合はそのまま pan を開始
+    if (e.pointerType !== 'touch') {
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      activeDrag = { kind: 'pan', lastX: e.clientX, lastY: e.clientY };
+    } else {
+      activeDrag = null;
+    }
   }
 
   function handlePointerMove(e: PointerEvent) {
@@ -1790,6 +1804,29 @@
                   class:storage={entry.isStorage}
                   vector-effect="non-scaling-stroke"
                 />
+                {#if isPlacing && isSelected}
+                  {@const pts = shapeToPolyPoints(d.shape)}
+                  {#if pts}
+                    {#each pts as p1, i}
+                      {@const p2 = pts[(i + 1) % pts.length]!}
+                      {@const isHoriz = p1[1] === p2[1]}
+                      {@const midX = ((p1[0] + p2[0]) / 2) * aspect}
+                      {@const midY = (p1[1] + p2[1]) / 2}
+                      {@const hw = (isHoriz ? 16 : 6) / ui.view.scale}
+                      {@const hh = (isHoriz ? 6 : 16) / ui.view.scale}
+                      <rect
+                        x={midX - hw / 2}
+                        y={midY - hh / 2}
+                        width={hw}
+                        height={hh}
+                        rx={3 / ui.view.scale}
+                        ry={3 / ui.view.scale}
+                        class="edge-resize-handle"
+                        vector-effect="non-scaling-stroke"
+                      />
+                    {/each}
+                  {/if}
+                {/if}
                 <text
                   x={(x + w / 2) * aspect}
                   y={y + h / 2}
@@ -1806,6 +1843,27 @@
                   class:storage={entry.isStorage}
                   vector-effect="non-scaling-stroke"
                 />
+                {#if isPlacing && isSelected}
+                  {@const pts = d.shape.points}
+                  {#each pts as p1, i}
+                    {@const p2 = pts[(i + 1) % pts.length]!}
+                    {@const isHoriz = p1[1] === p2[1]}
+                    {@const midX = ((p1[0] + p2[0]) / 2) * aspect}
+                    {@const midY = (p1[1] + p2[1]) / 2}
+                    {@const hw = (isHoriz ? 16 : 6) / ui.view.scale}
+                    {@const hh = (isHoriz ? 6 : 16) / ui.view.scale}
+                    <rect
+                      x={midX - hw / 2}
+                      y={midY - hh / 2}
+                      width={hw}
+                      height={hh}
+                      rx={3 / ui.view.scale}
+                      ry={3 / ui.view.scale}
+                      class="edge-resize-handle"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  {/each}
+                {/if}
                 <text
                   x={cxDisp}
                   y={cy}
@@ -2533,6 +2591,11 @@
 
     .fit-label-short {
       display: inline;
+    }
+
+    .svg-wrapper,
+    svg {
+      touch-action: pan-y;
     }
   }
 </style>

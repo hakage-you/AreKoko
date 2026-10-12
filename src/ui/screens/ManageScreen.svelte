@@ -247,17 +247,21 @@
               {#if editingTagId !== tag.id}
                 <button
                   type="button"
-                  class="small ghost"
+                  class="action-btn-icon"
+                  title="名前の変更"
+                  aria-label="タグ「{tag.name}」の名前の変更"
                   onclick={() => startTagRename(tag)}
                 >
-                  名前の変更
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                 </button>
                 <button
                   type="button"
-                  class="small danger ghost"
+                  class="action-btn-icon danger"
+                  title="削除"
+                  aria-label="タグ「{tag.name}」を削除"
                   onclick={() => handleDeleteTag(tag)}
                 >
-                  削除
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </button>
               {/if}
             </div>
@@ -344,36 +348,44 @@
               {#if editingCatId !== cat.id}
                 <button
                   type="button"
-                  class="small ghost"
+                  class="action-btn-icon"
+                  title="名前の変更"
+                  aria-label="カテゴリ「{cat.name}」の名前の変更"
                   onclick={() => startCatRename(cat)}
                 >
-                  名前の変更
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                 </button>
                 <button
                   type="button"
-                  class="small ghost"
+                  class="action-btn-icon"
+                  title="親カテゴリの変更"
+                  aria-label="カテゴリ「{cat.name}」の親カテゴリの変更"
                   onclick={() => {
                     movingCategoryCatId = cat.id;
                   }}
                 >
-                  親の変更
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
                 </button>
                 <button
                   type="button"
-                  class="small ghost"
+                  class="action-btn-icon"
+                  title="子カテゴリを追加"
+                  aria-label="カテゴリ「{cat.name}」に子カテゴリを追加"
                   onclick={() => {
                     addingChildParentId = cat.id;
                     newChildCategoryName = '';
                   }}
                 >
-                  ＋子
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
                 <button
                   type="button"
-                  class="small danger ghost"
+                  class="action-btn-icon danger"
+                  title="削除"
+                  aria-label="カテゴリ「{cat.name}」を削除"
                   onclick={() => handleDeleteCategory(cat.id)}
                 >
-                  削除
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </button>
               {/if}
             </div>
@@ -459,6 +471,45 @@
     }
   }
 
+  /* #8 インライン操作アイコンボタン */
+  .action-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    min-width: 28px;
+    height: 28px;
+    width: 28px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-small);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: all var(--duration-fast);
+  }
+
+  .action-btn-icon:hover {
+    background: var(--surface-2);
+    border-color: var(--text-muted);
+    color: var(--text);
+  }
+
+  .action-btn-icon:active {
+    transform: translateY(1px);
+  }
+
+  .action-btn-icon.danger {
+    color: var(--danger);
+    border-color: rgba(220, 38, 38, 0.35);
+  }
+
+  .action-btn-icon.danger:hover {
+    background: rgba(220, 38, 38, 0.08);
+    border-color: var(--danger);
+  }
+
   .manage-column {
     display: flex;
     flex-direction: column;
@@ -489,6 +540,11 @@
     gap: var(--space-2);
   }
 
+  .create-form input {
+    min-width: 0;
+    flex: 1;
+  }
+
   .items-list {
     display: flex;
     flex-direction: column;
@@ -516,10 +572,13 @@
     align-items: center;
     gap: var(--space-2);
     flex-wrap: wrap;
+    min-width: 0;
+    flex: 1;
   }
 
   .item-name {
     font-weight: 500;
+    word-break: break-word;
   }
 
   .inline-input {

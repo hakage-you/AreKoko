@@ -427,12 +427,12 @@
 
   // 塗り分けパレット（薄い塗り）
   const AREA_FILLS = [
-    'rgba(47, 111, 94, 0.08)',
-    'rgba(61, 139, 253, 0.08)',
-    'rgba(138, 90, 0, 0.08)',
-    'rgba(179, 65, 46, 0.08)',
-    'rgba(120, 80, 180, 0.08)',
-    'rgba(30, 150, 150, 0.08)',
+    'var(--area-fill-0)',
+    'var(--area-fill-1)',
+    'var(--area-fill-2)',
+    'var(--area-fill-3)',
+    'var(--area-fill-4)',
+    'var(--area-fill-5)',
   ];
 
   // ドラッグ操作の状態管理

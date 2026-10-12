@@ -117,19 +117,9 @@
       </button>
     </div>
 
-    <div class="help-action">
-      <button
-        type="button"
-        class="ghost"
-        onclick={() => app.openHelp('start')}
-      >
-        使い方・ヘルプ
-      </button>
-    </div>
-
     {#if !$app.supportsOverwrite}
       <p class="overwrite-warning">
-        このブラウザでは上書き保存ができません。保存はファイルの書き出しになります（Chrome・Edge なら上書き保存と自動保存が使えます）
+        このブラウザでは開いたファイルへの直接上書きができません。保存のたびにファイルがダウンロードされます（Chrome・Edge なら上書き保存と自動保存が使えます）
       </p>
     {/if}
 
@@ -323,11 +313,6 @@
     flex: 1;
     font-size: var(--font-size-large);
     padding: var(--space-3) var(--space-4);
-  }
-
-  .help-action {
-    display: flex;
-    justify-content: center;
   }
 
   .overwrite-warning {

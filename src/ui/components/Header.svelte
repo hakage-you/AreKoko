@@ -4,7 +4,7 @@
 
   const app = getApp();
 
-  type StatusKind = 'saved' | 'pending' | 'saving' | 'dirty' | 'conflict' | 'error';
+  type StatusKind = 'saved' | 'pending' | 'saving' | 'conflict' | 'error';
 
   interface StatusDisplay {
     text: string;
@@ -16,7 +16,7 @@
       return { text: '外で変更されました', kind: 'conflict' };
     }
     if ($app.saveStatus === 'invalid') {
-      return { text: '保存できません（アプリの不具合）', kind: 'error' };
+      return { text: '保存できません', kind: 'error' };
     }
     if ($app.saveStatus === 'error') {
       return { text: '保存に失敗しました', kind: 'error' };
@@ -27,18 +27,7 @@
     if ($app.saveStatus === 'pending') {
       return { text: '保存待ち…', kind: 'pending' };
     }
-    if ($app.dirty || $app.saveStatus === 'dirty') {
-      if (!$app.hasBackend) {
-        return { text: '保存先なし', kind: 'dirty' };
-      }
-      if (!$app.canOverwrite) {
-        return { text: '書き出していない変更あり', kind: 'dirty' };
-      }
-      return { text: '未保存の変更あり（自動保存オフ）', kind: 'dirty' };
-    }
-    if ($app.saveStatus === 'saved') {
-      return { text: '保存済み', kind: 'saved' };
-    }
+    // 未保存状態（dirty）の長文テキストは全廃し、「保存」ボタンの表示自体で示す
     return { text: '', kind: 'saved' };
   });
 
@@ -46,8 +35,6 @@
     $app.dirty &&
       (!$app.autosave || !$app.canOverwrite || !$app.hasBackend || $app.saveStatus === 'error')
   );
-
-  const saveButtonLabel = $derived($app.canOverwrite ? '保存' : '書き出す');
 
   // クウカン編集の間は、編集画面の見出しの「元に戻す・やり直す」を使う（レビュー1 R-B8）
   const showHistory = $derived($app.screen !== 'editor');
@@ -83,6 +70,24 @@
     void app.closeDocument();
   }
 
+  function menuToggleAutosave(): void {
+    const next = !$app.autosave;
+    app.setAutosave(next);
+    fileMenuOpen = false;
+    const msg = next
+      ? '自動保存をオンにしました（変更後約1秒で自動的に保存されます）'
+      : '自動保存をオフにしました（「保存」ボタンで保存してください）';
+    app.showToast('info', msg);
+  }
+
+  function onAutosaveClick(): void {
+    const next = !$app.autosave;
+    app.setAutosave(next);
+    const msg = next
+      ? '自動保存をオンにしました（変更後約1秒で自動的に保存されます）'
+      : '自動保存をオフにしました（「保存」ボタンで保存してください）';
+    app.showToast('info', msg);
+  }
 </script>
 
 {#snippet tab(label: string, active: boolean, onclick: () => void, sub = false)}
@@ -112,12 +117,46 @@
         >
           {$app.fileName ?? '名称未設定'}
         </button>
+
+        <button
+          type="button"
+          class="autosave-badge"
+          class:on={$app.autosave}
+          class:off={!$app.autosave}
+          title={$app.autosave ? '自動保存: オン（押すとオフにします）' : '自動保存: オフ（押すとオンにします）'}
+          aria-label={$app.autosave ? '自動保存はオンです。押すとオフにします' : '自動保存はオフです。押すとオンにします'}
+          onclick={onAutosaveClick}
+        >
+          {#if $app.autosave}
+            <svg class="autosave-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.5 7.5A5.5 5.5 0 0 1 12 4.5l1.5 1.5" />
+              <polyline points="13.5 2 13.5 6 9.5 6" />
+              <path d="M13.5 8.5A5.5 5.5 0 0 1 4 11.5L2.5 10" />
+              <polyline points="2.5 14 2.5 10 6.5 10" />
+            </svg>
+          {:else}
+            <svg class="autosave-icon off-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.5 7.5A5.5 5.5 0 0 1 12 4.5l1.5 1.5" opacity="0.6" />
+              <polyline points="13.5 2 13.5 6 9.5 6" opacity="0.6" />
+              <path d="M13.5 8.5A5.5 5.5 0 0 1 4 11.5L2.5 10" opacity="0.6" />
+              <polyline points="2.5 14 2.5 10 6.5 10" opacity="0.6" />
+              <line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" stroke-width="1.8" />
+            </svg>
+          {/if}
+        </button>
+
         {#if fileMenuOpen}
           <div class="file-menu" role="menu">
             <button type="button" role="menuitem" onclick={menuSaveAs}>別の名前で保存</button>
             <button type="button" role="menuitem" onclick={menuClose}>閉じる（最初の画面へ）</button>
+            <div class="file-menu-divider" role="separator"></div>
+            <button type="button" role="menuitem" class="file-menu-autosave" onclick={menuToggleAutosave}>
+              <span>自動保存: {$app.autosave ? 'オン' : 'オフ'}</span>
+              <span class="file-menu-subtext">切り替える</span>
+            </button>
           </div>
         {/if}
+
         {#if statusInfo.kind === 'conflict'}
           <!-- ダイアログを閉じた後でも、ここから選び直せる -->
           <button type="button" class="save-status conflict small" onclick={() => app.openConflictDialog()}>
@@ -131,8 +170,8 @@
       </div>
 
       {#if showSaveButton}
-        <button type="button" class="primary small" onclick={() => void app.save()}>
-          {saveButtonLabel}
+        <button type="button" class="primary small save-action-btn" onclick={() => void app.save()}>
+          保存
         </button>
       {/if}
 
@@ -181,14 +220,14 @@
   .header-left {
     display: flex;
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-3);
     min-width: 0;
   }
 
   .file-block {
     position: relative;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: var(--space-2);
     min-width: 0;
   }
@@ -196,7 +235,9 @@
   /* ファイル名は押せる（メニュー）。下線と、乗せたときの色だけで示す */
   .file-name {
     font-weight: 600;
-    max-width: 220px;
+    flex: 0 1 auto;
+    min-width: 60px;
+    max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -218,6 +259,44 @@
     background: transparent;
   }
 
+  /* 自動保存インジケーター（コンパクト・常時表示） */
+  .autosave-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-small);
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s, background-color 0.15s;
+  }
+
+  .autosave-badge:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .autosave-badge.on {
+    color: var(--accent);
+  }
+
+  .autosave-badge.off {
+    color: var(--text-muted);
+  }
+
+  .autosave-icon {
+    display: block;
+  }
+
+  .autosave-icon.off-icon {
+    color: var(--text-muted);
+  }
+
   .file-menu {
     position: absolute;
     top: calc(100% + 6px);
@@ -225,7 +304,7 @@
     z-index: 50;
     display: flex;
     flex-direction: column;
-    min-width: 200px;
+    min-width: 220px;
     padding: var(--space-1);
     background: var(--surface);
     border: 1px solid var(--border);
@@ -238,15 +317,35 @@
     border: none;
     background: transparent;
     text-align: left;
+    padding: var(--space-1) var(--space-2);
   }
 
   .file-menu button:hover {
     background: var(--surface-2);
   }
 
+  .file-menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: var(--space-1) 0;
+  }
+
+  .file-menu-autosave {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: var(--font-size-small);
+  }
+
+  .file-menu-subtext {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
   .save-status {
     font-size: var(--font-size-small);
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .save-status.saved {
@@ -256,10 +355,6 @@
   .save-status.pending,
   .save-status.saving {
     color: var(--accent);
-  }
-
-  .save-status.dirty {
-    color: var(--warning);
   }
 
   .save-status.conflict,
@@ -272,11 +367,16 @@
     text-decoration: underline;
   }
 
+  .save-action-btn {
+    flex-shrink: 0;
+  }
+
   .history-actions {
     display: flex;
     gap: var(--space-1);
-    padding-left: var(--space-4);
+    padding-left: var(--space-3);
     border-left: 1px solid var(--border);
+    flex-shrink: 0;
   }
 
   .nav {
@@ -318,6 +418,7 @@
     align-items: center;
     justify-content: flex-end;
     gap: var(--space-2);
+    min-width: 0;
   }
 
   .help-btn {
@@ -327,18 +428,12 @@
     border-radius: 999px;
     padding: 0 var(--space-3);
     font-size: var(--font-size-small);
+    flex-shrink: 0;
   }
 
   .help-btn > span:first-child {
     font-weight: 700;
     color: var(--accent);
-  }
-
-  .nav-mobile {
-    display: none;
-    border-top: 1px solid var(--border);
-    padding: var(--space-1) var(--space-2);
-    gap: var(--space-2);
   }
 
   @media (max-width: 767px) {
@@ -349,19 +444,24 @@
     .header-bar {
       display: flex;
       justify-content: space-between;
+      gap: var(--space-2);
       padding: var(--space-1) var(--space-2);
     }
 
     .header-left {
       gap: var(--space-2);
+      min-width: 0;
+      flex: 1 1 auto;
     }
 
     .history-actions {
       padding-left: var(--space-2);
+      gap: 2px;
     }
 
     .file-name {
-      max-width: 120px;
+      max-width: 110px;
+      min-width: 48px;
     }
 
     .help-label {

@@ -262,8 +262,8 @@ import type { Item } from '../../core/types';
             <div class="col-category">
               {#if row.item.category !== null && $app.doc}
                 {@const cat = $app.doc.membership.categories.find((c) => c.id === row.item.category)}
-                <span class="chip small truncate-text" style={getBadgeStyle(cat?.color)}>
-                  {cat?.name ?? '未分類'}
+                <span class="chip small category-chip" style={getBadgeStyle(cat?.color)}>
+                  <span class="chip-text">{cat?.name ?? '未分類'}</span>
                 </span>
               {:else}
                 <span class="truncate-text muted">未分類</span>
@@ -299,7 +299,7 @@ import type { Item } from '../../core/types';
               {/if}
               <button
                 type="button"
-                class="view-btn small ghost"
+                class="view-btn small"
                 title="クウカンで見る"
                 aria-label="{row.item.name} をクウカンで見る"
                 onclick={(e) => {
@@ -517,6 +517,18 @@ import type { Item } from '../../core/types';
     min-width: 100px;
     padding: 0 var(--space-2);
     overflow: hidden;
+    display: flex;
+    align-items: center;
+  }
+
+  .category-chip {
+    max-width: 100%;
+  }
+
+  .chip-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .col-tags {
@@ -559,12 +571,30 @@ import type { Item } from '../../core/types';
   }
 
   .view-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 28px;
     height: 28px;
     padding: 0 var(--space-2);
     font-size: var(--font-size-small);
     white-space: nowrap;
     border-radius: var(--radius-small);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    transition: background var(--duration-fast), border-color var(--duration-fast), transform var(--duration-fast);
+  }
+
+  .view-btn:hover {
+    background: var(--surface-2);
+    border-color: var(--text-muted);
+  }
+
+  .view-btn:active {
+    transform: translateY(1px);
   }
 
   .view-btn-full {

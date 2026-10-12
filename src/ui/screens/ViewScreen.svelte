@@ -445,8 +445,8 @@
     }
 
     .canvas-pane {
-      min-height: 320px;
-      height: 52vh;
+      min-height: 260px;
+      height: 44vh;
       flex-shrink: 0;
     }
 

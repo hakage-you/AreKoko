@@ -258,9 +258,6 @@
             <span class="chip small muted">
               {$app.doc ? itemsDirectlyIn($app.doc, kuukan.id).length : 0}件
             </span>
-            {#if hasDrawing(kuukan.id)}
-              <span class="chip small accent">図あり</span>
-            {/if}
           </div>
           {#if node.pathText}
             <span class="storage-path muted small">
@@ -923,10 +920,20 @@
     text-align: left;
     gap: var(--space-3);
     cursor: pointer;
+    white-space: normal;
+    justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .template-card:hover {
     background: var(--surface-2);
+  }
+
+  .template-card :global(.template-thumb),
+  .template-card :global(svg) {
+    flex-shrink: 0;
   }
 
   .template-text {
@@ -934,46 +941,73 @@
     flex-direction: column;
     gap: var(--space-1);
     flex: 1;
+    min-width: 0;
+    text-align: left;
   }
 
   .template-name {
     font-weight: 600;
+    white-space: normal;
   }
 
   .template-desc {
     line-height: var(--line-height);
+    white-space: normal;
+    word-break: break-word;
   }
 
   @media (max-width: 767.98px) {
     .kuukan-card {
-      flex-direction: column;
-      align-items: stretch;
-      gap: var(--space-3);
-      padding: var(--space-3) var(--space-4);
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
     }
 
     .kuukan-info {
-      width: 100%;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .kuukan-title-block {
+      gap: var(--space-1);
+      flex-wrap: nowrap;
+    }
+
+    .kuukan-name-btn {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .kuukan-children {
+      margin-left: 14px;
+      padding-left: var(--space-1);
     }
 
     .kuukan-actions {
-      width: 100%;
-      justify-content: flex-end;
-      gap: var(--space-3);
+      flex-shrink: 0;
+      gap: var(--space-1);
     }
 
-    .kuukan-actions button,
+    .kuukan-actions button {
+      min-height: 32px;
+      padding: 0 var(--space-2);
+      font-size: var(--font-size-small);
+    }
+
     .menu-trigger-btn {
-      min-height: 44px;
-      min-width: 44px;
-      padding: 0 var(--space-3);
-      font-size: var(--font-size);
+      min-height: 32px;
+      min-width: 32px;
+      padding: 0 var(--space-1);
     }
 
     .menu-item {
-      min-height: 44px;
-      padding: var(--space-2) var(--space-3);
-      font-size: var(--font-size);
+      min-height: 36px;
+      padding: var(--space-1) var(--space-2);
+      font-size: var(--font-size-small);
     }
 
     .create-form {
@@ -983,6 +1017,24 @@
     .create-form input {
       min-width: 0;
       width: 100%;
+    }
+
+    .template-card {
+      padding: var(--space-2) var(--space-3);
+      gap: var(--space-2);
+    }
+
+    :global(.dialog-container) {
+      padding: var(--space-2);
+    }
+
+    :global(.dialog) {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    :global(.dialog-body) {
+      padding: var(--space-2) var(--space-3);
     }
   }
 </style>

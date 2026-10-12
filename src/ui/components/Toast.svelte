@@ -49,6 +49,12 @@
     justify-content: center;
   }
 
+  @media (max-width: 767.98px) {
+    .toast-wrapper {
+      bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
   .toast {
     pointer-events: auto;
     display: flex;

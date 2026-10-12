@@ -7,8 +7,12 @@
   // 説明ページの場所（アプリと同じ場所の ai.md。詳細設計 段階7 F3）
   const aiPageUrl = new URL('ai.md', document.baseURI).href;
   const llmsUrl = new URL('llms.txt', document.baseURI).href;
-  const askText = `${llmsUrl} を読んで、アレココの文書の編集のしかたを確かめてください。そのうえで、添付する文書（JSON）に次のモノを追加して、編集した文書を返してください：
-（ここに追加したいモノを書く）`;
+  const askText = `${llmsUrl} を読んで、アレココの文書の編集ルールを確認してください。そのうえで、添付する文書（JSON）に以下の持ち物を追加し、編集後のJSONファイルを返してください。
+
+【追加したいモノのリスト例】
+- 名前: ハサミ, 置き場: デスク周り, カテゴリ: 文具, タグ: 仕事
+- 名前: 単3乾電池, 置き場: 引き出し1, カテゴリ: 消耗品, 数量: 4
+- 名前: 予備のメガネ, 置き場: 未設定`;
 
   async function copyAsk(): Promise<void> {
     try {
@@ -89,13 +93,62 @@
     </section>
 
     <section class="settings-section">
-      <h2 class="section-title">AI向けの説明</h2>
-      <p class="ai-lead">手元のAIに文書（JSON）を渡して、モノやカテゴリ・タグをまとめて追加してもらえます。<strong>頼む前に、ファイルの複製を取ってください。</strong>AIが足したものは、次に開くときに一覧で確かめてから読み込みます。</p>
-      <div class="ai-actions">
-        <a class="button-link" href={aiPageUrl} target="_blank" rel="noopener">説明ページを開く</a>
-        <button type="button" class="primary" onclick={copyAsk}>AIへの頼み方をコピー</button>
-      </div>
-      <pre class="ai-ask">{askText}</pre>
+      <h2 class="section-title">AIに持ち物を登録させたい方向けのガイド</h2>
+      <details class="ai-guide-details">
+        <summary class="ai-guide-summary">手順と指示文のテンプレートを見る</summary>
+        <div class="ai-guide-content">
+          <p class="ai-lead">
+            ChatGPTなどの外部AIサービスをご自身でお使いの方で、持ち物データをまとめて追加したい場合の手順です。<br />
+            <span class="muted small">※ 本アプリ自体が外部AIと通信したり、データを学習に利用したりすることはありません。</span>
+          </p>
+
+          <div class="ai-steps">
+            <div class="ai-step">
+              <span class="step-num">STEP 1</span>
+              <div class="step-body">
+                <strong>ファイルの複製（バックアップ）を取る</strong>
+                <p class="step-desc">
+                  編集前の安全のため、上の「別の名前で保存」などを使って、現在のファイルのバックアップを手元に残しておいてください。
+                </p>
+              </div>
+            </div>
+
+            <div class="ai-step">
+              <span class="step-num">STEP 2</span>
+              <div class="step-body">
+                <strong>手元のAIに指示文とファイル（JSON）を渡す</strong>
+                <p class="step-desc">
+                  下のボタンで指示文をコピーし、追加したいモノを書き添えて、保存したファイル（JSON）と一緒にAIへ渡します。
+                </p>
+              </div>
+            </div>
+
+            <div class="ai-step">
+              <span class="step-num">STEP 3</span>
+              <div class="step-body">
+                <strong>AIが編集したファイルを本アプリで開く</strong>
+                <p class="step-desc">
+                  AIから返ってきたJSONファイルを、アレココの「ファイルを開く」で読み込みます。AIが追加した内容は、読み込み時に一覧で確認できます。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="ai-template-box">
+            <div class="ai-template-header">
+              <span class="template-label">AIへの指示文（プロンプト）</span>
+              <button type="button" class="primary small" onclick={copyAsk}>指示文をコピー</button>
+            </div>
+            <pre class="ai-ask">{askText}</pre>
+          </div>
+
+          <div class="ai-more-info">
+            <a class="ai-spec-link" href={aiPageUrl} target="_blank" rel="noopener">
+              詳しい仕様書（ai.md）を開く ↗
+            </a>
+          </div>
+        </div>
+      </details>
     </section>
 
     <section class="settings-section">
@@ -289,42 +342,118 @@
     font-weight: 500;
   }
 
-  .ai-lead {
-    margin: 0 0 var(--space-3);
-    line-height: var(--line-height);
-  }
-
-  .ai-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
-  }
-
-  .button-link {
-    display: inline-flex;
-    align-items: center;
-    min-height: 36px;
-    padding: 0 var(--space-3);
+  /* AIガイドのアコーディオン */
+  .ai-guide-details {
     border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .ai-guide-summary {
+    padding: var(--space-3) var(--space-4);
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    background: var(--surface-2);
+    transition: background var(--duration-fast);
+  }
+
+  .ai-guide-summary:hover {
+    background: var(--surface-hover, var(--border));
+  }
+
+  .ai-guide-content {
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    border-top: 1px solid var(--border);
+  }
+
+  .ai-lead {
+    margin: 0;
+    line-height: var(--line-height);
+    font-size: var(--font-size);
+  }
+
+  .ai-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    background: var(--surface-2);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-small);
+  }
+
+  .ai-step {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+
+  .step-num {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
     border-radius: var(--radius-small);
     background: var(--surface);
-    color: var(--text);
-    text-decoration: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    flex-shrink: 0;
+    line-height: 1.2;
+    margin-top: 2px;
   }
 
-  .button-link:hover {
-    background: var(--surface-2);
+  .step-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--font-size-small);
+  }
+
+  .step-desc {
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  .ai-template-box {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .ai-template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .template-label {
+    font-weight: 600;
+    font-size: var(--font-size-small);
   }
 
   .ai-ask {
     margin: 0;
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3);
     white-space: pre-wrap;
-    word-break: break-all;
-    font-size: var(--font-size-small);
+    word-break: break-word;
+    font-size: 12px;
+    line-height: 1.5;
     background: var(--surface-2);
+    border: 1px solid var(--border);
     border-radius: var(--radius-small);
     user-select: all;
+    font-family: inherit;
+  }
+
+  .ai-more-info {
+    font-size: var(--font-size-small);
+  }
+
+  .ai-spec-link {
+    color: var(--accent);
+    text-decoration: underline;
   }
 </style>
