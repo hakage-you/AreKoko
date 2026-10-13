@@ -1771,6 +1771,11 @@
             {@const d = entry.drawing}
             {@const it = entry.item}
             {@const isSelected = ui.selectedDrawing === it.id}
+            {@const isFocus = $app.view?.focus === it.id}
+            {@const isHighlight = $app.highlights.has(it.id)}
+            {@const isDirect = Boolean(quickResult?.direct.has(it.id))}
+            {@const insideCount = entry.isStorage ? quickResult?.insideStorage.get(it.id) ?? 0 : 0}
+            {@const isQuickStorage = insideCount > 0}
             {@const center = shapeCenter(d.shape)}
             {@const cxDisp = center[0] * aspect}
             {@const cy = center[1]}
@@ -1778,6 +1783,10 @@
             <g
               class="item-drawing-group selected-spotlight-item"
               class:selected={isSelected}
+              class:focus={isFocus}
+              class:highlight={isHighlight}
+              class:quick-direct={isDirect}
+              class:quick-storage={isQuickStorage}
               transform={rotDeg !== 0 ? `rotate(${rotDeg}, ${cxDisp}, ${cy})` : undefined}
               pointer-events="none"
             >
@@ -1793,17 +1802,61 @@
                   class:storage={entry.isStorage}
                   vector-effect="non-scaling-stroke"
                 />
+                {#if entry.isStorage}
+                  <circle
+                    cx={px}
+                    cy={py}
+                    r={r * 0.55}
+                    class="item-point-inner"
+                    vector-effect="non-scaling-stroke"
+                  />
+                {/if}
+                <text
+                  x={px}
+                  y={py + r + 10 / ui.view.scale}
+                  class="item-label"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                >
+                  {it.name}
+                </text>
+                {#if entry.isStorage && insideCount > 0}
+                  <text
+                    x={px}
+                    y={py + r + 22 / ui.view.scale}
+                    class="item-inside-count"
+                    text-anchor="middle"
+                    dominant-baseline="central"
+                  >
+                    中に{insideCount}件
+                  </text>
+                {/if}
               {:else if d.shape.type === 'rect'}
                 {@const { x, y, w, h } = d.shape}
+                {@const rw = w * aspect}
+                {@const rh = h}
+                {@const rx = x * aspect}
+                {@const ry = y}
                 <rect
-                  x={x * aspect}
-                  y={y}
-                  width={w * aspect}
-                  height={h}
+                  x={rx}
+                  y={ry}
+                  width={rw}
+                  height={rh}
                   class="item-rect"
                   class:storage={entry.isStorage}
                   vector-effect="non-scaling-stroke"
                 />
+                {#if entry.isStorage}
+                  {@const gap = Math.min(rw * 0.12, rh * 0.12, 4 / ui.view.scale)}
+                  <rect
+                    x={rx + gap}
+                    y={ry + gap}
+                    width={Math.max(1, rw - 2 * gap)}
+                    height={Math.max(1, rh - 2 * gap)}
+                    class="item-rect-inner"
+                    vector-effect="non-scaling-stroke"
+                  />
+                {/if}
                 {#if isPlacing && isSelected}
                   {@const pts = shapeToPolyPoints(d.shape)}
                   {#if pts}
@@ -1828,21 +1881,40 @@
                   {/if}
                 {/if}
                 <text
-                  x={(x + w / 2) * aspect}
-                  y={y + h / 2}
+                  x={rx + rw / 2}
+                  y={entry.isStorage && insideCount > 0 ? ry + rh / 2 - 6 / ui.view.scale : ry + rh / 2}
                   class="item-label"
                   text-anchor="middle"
                   dominant-baseline="central"
                 >
                   {it.name}
                 </text>
+                {#if entry.isStorage && insideCount > 0}
+                  <text
+                    x={rx + rw / 2}
+                    y={ry + rh / 2 + 8 / ui.view.scale}
+                    class="item-inside-count"
+                    text-anchor="middle"
+                    dominant-baseline="central"
+                  >
+                    中に{insideCount}件
+                  </text>
+                {/if}
               {:else if d.shape.type === 'poly'}
+                {@const ptsStr = d.shape.points.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
                 <polygon
-                  points={d.shape.points.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
+                  points={ptsStr}
                   class="item-poly"
                   class:storage={entry.isStorage}
                   vector-effect="non-scaling-stroke"
                 />
+                {#if entry.isStorage}
+                  <polygon
+                    points={ptsStr}
+                    class="item-poly-inner"
+                    vector-effect="non-scaling-stroke"
+                  />
+                {/if}
                 {#if isPlacing && isSelected}
                   {@const pts = d.shape.points}
                   {#each pts as p1, i}
@@ -1866,13 +1938,24 @@
                 {/if}
                 <text
                   x={cxDisp}
-                  y={cy}
+                  y={entry.isStorage && insideCount > 0 ? cy - 6 / ui.view.scale : cy}
                   class="item-label"
                   text-anchor="middle"
                   dominant-baseline="central"
                 >
                   {it.name}
                 </text>
+                {#if entry.isStorage && insideCount > 0}
+                  <text
+                    x={cxDisp}
+                    y={cy + 8 / ui.view.scale}
+                    class="item-inside-count"
+                    text-anchor="middle"
+                    dominant-baseline="central"
+                  >
+                    中に{insideCount}件
+                  </text>
+                {/if}
               {/if}
             </g>
           {/each}
