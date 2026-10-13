@@ -2355,6 +2355,10 @@
     font-weight: 600;
     pointer-events: none;
     user-select: none;
+    stroke: var(--surface);
+    stroke-width: calc(3px * var(--u, 1));
+    stroke-linejoin: round;
+    paint-order: stroke fill;
   }
 
   .item-inside-count {
@@ -2364,6 +2368,10 @@
     font-weight: 600;
     pointer-events: none;
     user-select: none;
+    stroke: var(--surface);
+    stroke-width: calc(2.5px * var(--u, 1));
+    stroke-linejoin: round;
+    paint-order: stroke fill;
   }
 
   /* ハイライトと選択状態 */

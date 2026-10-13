@@ -85,7 +85,7 @@ export function sampleDocument(): ArekokoDocument {
 
   const [clock] = run(d => addItem(d, { name: 'デジタル時計', place: areaDesk!, category: catAppliance! }, ctx));
   run(d => setItemDrawing(d, clock!, {
-    shape: { type: 'rect', x: 3200, y: 2600, w: 600, h: 400 },
+    shape: { type: 'point', at: [3300, 2800] },
   }, ctx));
 
   const [clockKuukan] = run(d => makeStorage(d, clock!, {}, ctx));

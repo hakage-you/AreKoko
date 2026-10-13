@@ -104,7 +104,7 @@ describe('sampleDocument', () => {
     // デジタル時計に描画があること
     const drawing = doc.drawing.items.find(d => d.item === clock!.id);
     expect(drawing).toBeDefined();
-    expect(drawing!.shape.type).toBe('rect');
+    expect(drawing!.shape.type).toBe('point');
 
     // デジタル時計が収納として設定されていること
     const clockKuukan = doc.membership.kuukans.find(k => k.owner === clock!.id);
