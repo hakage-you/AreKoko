@@ -274,7 +274,18 @@
         {#if editingKuukanId !== kuukan.id}
           <button
             type="button"
-            class="small"
+            class="small primary open-kuukan-btn"
+            title="このクウカンを開いてモノを見たり追加したりします"
+            onclick={(e) => {
+              e.stopPropagation();
+              app.openView(kuukan.id);
+            }}
+          >
+            開く
+          </button>
+          <button
+            type="button"
+            class="small ghost edit-shape-btn"
             title="クウカンのかたちや仕切り、目印を編集します"
             onclick={(e) => {
               e.stopPropagation();

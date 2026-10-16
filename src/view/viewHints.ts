@@ -37,8 +37,8 @@ export function computeViewHint(params: ViewHintParams): ViewHint {
   // 1. 通常閲覧モード
   if (!isPlacing) {
     return {
-      what: 'エリアを押すと、そのエリアのモノがリストに並びます',
-      how: '再クリックで解除、収納を押すと中身を開けます。位置の登録は右上の「モノを配置」へ。',
+      what: 'エリアを押すと、そのエリアのモノに絞り込めます',
+      how: 'もう一度押すと元に戻ります。収納を押すと中身を開けます。',
       shortWhat: 'エリアで絞り込み',
       shortHow: '収納を押すと中身を開けます',
       actionText: '',

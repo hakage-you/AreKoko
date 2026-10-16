@@ -123,25 +123,17 @@
           class="autosave-badge"
           class:on={$app.autosave}
           class:off={!$app.autosave}
-          title={$app.autosave ? '自動保存: オン（押すとオフにします）' : '自動保存: オフ（押すとオンにします）'}
-          aria-label={$app.autosave ? '自動保存はオンです。押すとオフにします' : '自動保存はオフです。押すとオンにします'}
+          title={$app.autosave ? '自動保存: オン（変更は約1秒後に自動保存されます）' : '自動保存: オフ（手動で保存ボタンを押してください）'}
+          aria-label={$app.autosave ? '自動保存はオンです' : '自動保存はオフです'}
           onclick={onAutosaveClick}
         >
           {#if $app.autosave}
-            <svg class="autosave-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M2.5 7.5A5.5 5.5 0 0 1 12 4.5l1.5 1.5" />
-              <polyline points="13.5 2 13.5 6 9.5 6" />
-              <path d="M13.5 8.5A5.5 5.5 0 0 1 4 11.5L2.5 10" />
-              <polyline points="2.5 14 2.5 10 6.5 10" />
+            <svg class="autosave-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="2.5 8.5 6 12 13.5 4" />
             </svg>
+            <span class="autosave-text">自動保存</span>
           {:else}
-            <svg class="autosave-icon off-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M2.5 7.5A5.5 5.5 0 0 1 12 4.5l1.5 1.5" opacity="0.6" />
-              <polyline points="13.5 2 13.5 6 9.5 6" opacity="0.6" />
-              <path d="M13.5 8.5A5.5 5.5 0 0 1 4 11.5L2.5 10" opacity="0.6" />
-              <polyline points="2.5 14 2.5 10 6.5 10" opacity="0.6" />
-              <line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" stroke-width="1.8" />
-            </svg>
+            <span class="autosave-text off">手動保存</span>
           {/if}
         </button>
 
@@ -259,42 +251,45 @@
     background: transparent;
   }
 
-  /* 自動保存インジケーター（コンパクト・常時表示） */
+  /* 自動保存インジケーター（ピル型・安心感向上） */
   .autosave-badge {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-small);
+    gap: 4px;
+    height: 22px;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    border-radius: 999px;
     color: var(--text-muted);
+    font-size: 11px;
     cursor: pointer;
     flex-shrink: 0;
-    transition: color 0.15s, background-color 0.15s;
+    transition: color 0.15s, background-color 0.15s, border-color 0.15s;
   }
 
   .autosave-badge:hover {
-    background: var(--surface-2);
+    background: var(--surface-3);
     color: var(--text);
   }
 
   .autosave-badge.on {
     color: var(--accent);
+    border-color: rgba(52, 211, 153, 0.3);
   }
 
   .autosave-badge.off {
     color: var(--text-muted);
+    border-color: var(--border);
   }
 
   .autosave-icon {
     display: block;
+    flex-shrink: 0;
   }
 
-  .autosave-icon.off-icon {
-    color: var(--text-muted);
+  .autosave-text {
+    font-weight: 500;
   }
 
   .file-menu {
