@@ -275,13 +275,13 @@
           <button
             type="button"
             class="small"
-            title={hasDrawing(kuukan.id) ? 'クウカンのかたちや仕切り、目印を編集します' : 'このクウカンのかたちを作ります'}
+            title="クウカンのかたちや仕切り、目印を編集します"
             onclick={(e) => {
               e.stopPropagation();
               handleEditKuukan(kuukan.id);
             }}
           >
-            {hasDrawing(kuukan.id) ? 'かたちを編集' : 'かたちを作る'}
+            かたちを編集
           </button>
 
           <div class="menu-container">

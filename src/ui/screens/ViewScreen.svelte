@@ -208,7 +208,7 @@
                     class="primary small"
                     onclick={handleRedraw}
                   >
-                    かたちを作る
+                    編集
                   </button>
                 {/if}
               </div>
