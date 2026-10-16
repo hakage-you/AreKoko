@@ -83,7 +83,7 @@
       case 'redraw': {
         const doc = $app.doc;
         const name = doc ? displayName(doc, origin.source) : '';
-        return `${name}に図を描く（下書き）`;
+        return `${name}のかたちを作る（下書き）`;
       }
     }
   });

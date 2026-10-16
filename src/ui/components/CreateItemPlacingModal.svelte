@@ -105,7 +105,7 @@
       {/if}
 
       <div class="modal-section placing-section">
-        <div class="section-title">図面への配置</div>
+        <div class="section-title">配置図への配置</div>
         <div class="placing-options-grid">
           <button
             type="button"
@@ -118,7 +118,7 @@
             <span class="custom-radio" class:checked={placeNow}>
               <span class="radio-inner"></span>
             </span>
-            <span class="choice-card-name">続けて図面に配置する</span>
+            <span class="choice-card-name">続けて配置図に配置する</span>
           </button>
           <button
             type="button"

@@ -62,9 +62,9 @@ describe('computeViewHint', () => {
     });
 
     expect(hint.what).toBe('「防災リュック」を四角で配置します');
-    expect(hint.how).toBe('図の上をドラッグして大きさと位置を指定してください。');
+    expect(hint.how).toBe('配置図の上をドラッグして大きさと位置を指定してください。');
     expect(hint.shortWhat).toBe('「防災リュック」');
-    expect(hint.shortHow).toBe('図面をドラッグして四角で配置');
+    expect(hint.shortHow).toBe('配置図をドラッグして四角で配置');
     expect(hint.actionText).toBe('ドラッグして描画');
   });
 

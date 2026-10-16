@@ -250,9 +250,9 @@
               type="button"
               class="small place-placing-btn"
               onclick={handleStartPlacing}
-              title={hasItemDrawing ? '間取り図面上の位置を変更します' : '間取り図面上にこのモノを配置します'}
+              title={hasItemDrawing ? '配置図上の位置を変更します' : '配置図上にこのモノを配置します'}
             >
-              {hasItemDrawing ? '位置を変更' : '図面に配置'}
+              {hasItemDrawing ? '位置を変更' : '配置図に配置'}
             </button>
           </div>
         {/if}

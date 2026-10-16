@@ -633,6 +633,32 @@
   <section class="panel-section">
     <div class="section-title">クウカン</div>
     {#if targetKuukan}
+      {#if isDraft}
+        <div class="field-block outline-mode-block">
+          {#if !hasDrawing}
+            <p class="muted small desc-text">
+              クウカンのかたちを作らずに確定すると、かたちのないクウカン（リストのみ）になります。
+            </p>
+            <button
+              type="button"
+              class="small"
+              onclick={handleAddOutline}
+            >
+              クウカンのかたちを作る
+            </button>
+          {:else if canRemoveOutline}
+            <button
+              type="button"
+              class="small ghost"
+              onclick={handleRemoveOutline}
+            >
+              クウカンのかたちを設定しない
+            </button>
+          {/if}
+        </div>
+        <div class="panel-divider"></div>
+      {/if}
+
       {#if targetKuukan.owner === null}
         <div class="field-block">
           <label for="kuukan-name-input">名前</label>
@@ -754,30 +780,7 @@
         {/if}
       {/if}
 
-      {#if isDraft}
-        <div class="field-block outline-actions">
-          {#if !hasDrawing}
-            <p class="muted small desc-text">
-              外形を描かずに確定すると、描画なしのクウカンになります。
-            </p>
-            <button
-              type="button"
-              class="small"
-              onclick={handleAddOutline}
-            >
-              外形を付ける
-            </button>
-          {:else if canRemoveOutline}
-            <button
-              type="button"
-              class="small ghost"
-              onclick={handleRemoveOutline}
-            >
-              外形を外す（描画なしにする）
-            </button>
-          {/if}
-        </div>
-      {/if}
+
     {/if}
   </section>
 
@@ -982,8 +985,14 @@
 
 
 
-  .outline-actions {
-    margin-top: var(--space-2);
+  .panel-divider {
+    height: 1px;
+    background: var(--border);
+    margin: var(--space-3) 0;
+  }
+
+  .outline-mode-block {
+    margin-bottom: var(--space-2);
   }
 
   .area-tree-list {

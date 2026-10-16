@@ -1053,7 +1053,7 @@
         <div class="tool-group">
           <span class="group-title">&nbsp;</span>
           <div class="group-buttons">
-            <button type="button" class="tool-btn danger" onclick={applyRemoveItemDrawing} title="このモノを図面から削除します（モノと置き場はそのまま残ります）">図面から削除</button>
+            <button type="button" class="tool-btn danger" onclick={applyRemoveItemDrawing} title="このモノを配置図から削除します（モノと置き場はそのまま残ります）">配置図から削除</button>
             <button type="button" class="tool-btn" onclick={() => { ui.selectedDrawing = null; ui.message = null; }} title="選択を解除します">選択解除</button>
           </div>
         </div>
@@ -1111,9 +1111,9 @@
             type="button"
             class="small ghost edit-kuukan-btn"
             onclick={() => kuukanId && app.openKuukanEditor(kuukanId)}
-            title="間取りや仕切り、目印を編集します"
+            title="クウカンのかたちや仕切り、目印を編集します"
           >
-            間取り編集
+            クウカン編集
           </button>
         </div>
       {/if}
@@ -1356,8 +1356,8 @@
           {#each kuukanItemDrawings as entry}
             {@const d = entry.drawing}
             {@const it = entry.item}
-            {@const isSelected = ui.selectedDrawing === it.id}
-            {@const isFocus = $app.view?.focus === it.id}
+            {@const isSelected = ui.selectedDrawing === it.id || $app.detail === it.id}
+            {@const isFocus = $app.view?.focus === it.id || $app.detail === it.id}
             {@const isHighlight = $app.highlights.has(it.id)}
             {@const isDirect = Boolean(quickResult?.direct.has(it.id))}
             {@const insideCount = entry.isStorage ? quickResult?.insideStorage.get(it.id) ?? 0 : 0}
@@ -1770,8 +1770,8 @@
           {#each kuukanItemDrawings.filter((e) => e.item.place === selectedAreaId) as entry}
             {@const d = entry.drawing}
             {@const it = entry.item}
-            {@const isSelected = ui.selectedDrawing === it.id}
-            {@const isFocus = $app.view?.focus === it.id}
+            {@const isSelected = ui.selectedDrawing === it.id || $app.detail === it.id}
+            {@const isFocus = $app.view?.focus === it.id || $app.detail === it.id}
             {@const isHighlight = $app.highlights.has(it.id)}
             {@const isDirect = Boolean(quickResult?.direct.has(it.id))}
             {@const insideCount = entry.isStorage ? quickResult?.insideStorage.get(it.id) ?? 0 : 0}

@@ -237,9 +237,17 @@
                   {/if}
                 </div>
                 <span class="item-name">{tag.name}</span>
-                <span class="chip small muted">
-                  {indexes?.itemsByTag.get(tag.id)?.length ?? 0}件
-                </span>
+                <button
+                  type="button"
+                  class="chip small muted count-link-btn"
+                  title="サガシモノで「{tag.name}」のモノを表示"
+                  onclick={() => {
+                    app.setQuery({ tags: { ids: [tag.id], mode: 'all' } });
+                    app.setScreen('search');
+                  }}
+                >
+                  <span class="count-text">{indexes?.itemsByTag.get(tag.id)?.length ?? 0}件</span>
+                </button>
               </div>
             {/if}
 
@@ -340,7 +348,17 @@
                   {/if}
                 </div>
                 <span class="item-name">{cat.name}</span>
-                <span class="chip small muted">{cat.directCount}件</span>
+                <button
+                  type="button"
+                  class="chip small muted count-link-btn"
+                  title="サガシモノで「{cat.name}」のモノを表示"
+                  onclick={() => {
+                    app.setQuery({ category: cat.id });
+                    app.setScreen('search');
+                  }}
+                >
+                  <span class="count-text">{cat.directCount}件</span>
+                </button>
               </div>
             {/if}
 
@@ -629,5 +647,21 @@
   .color-badge-trigger:hover {
     border-color: var(--accent);
     transform: scale(1.15);
+  }
+
+  .count-link-btn {
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--border);
+    transition: color var(--duration-fast), border-color var(--duration-fast);
+  }
+
+  .count-link-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .count-link-btn:hover .count-text {
+    text-decoration: underline;
   }
 </style>

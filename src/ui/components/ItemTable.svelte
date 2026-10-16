@@ -163,9 +163,9 @@ import type { Item } from '../../core/types';
             type="button"
             class="group-toggle-all-btn ghost small"
             onclick={toggleAllGroups}
-            title={allGroupsCollapsed ? 'すべてのグループを展開' : 'すべてのグループを折りたたむ'}
+            title={allGroupsCollapsed ? 'ぜんぶ展開します' : 'ぜんぶ折りたたみます'}
           >
-            {allGroupsCollapsed ? 'すべて展開' : 'すべて折畳'}
+            {allGroupsCollapsed ? 'ぜんぶ展開' : 'ぜんぶ折りたたむ'}
           </button>
         {/if}
       </div>

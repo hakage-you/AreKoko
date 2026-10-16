@@ -1111,17 +1111,17 @@
 >
   {#if !kuukanDrawing}
     <div class="no-drawing-placeholder">
-      <p class="no-drawing-text">このクウカンには図がありません</p>
+      <p class="no-drawing-text">このクウカンにはまだかたちがありません</p>
       {#if $app.editor?.kind === 'kuukan' && $app.editor.kuukan !== NIL_ID}
         {@const source = $app.editor.kuukan}
-        <button type="button" class="primary" onclick={() => app.openDraft({ kind: 'redraw', source })}>図を描く</button>
-        <p class="no-drawing-note">下書きが開きます。確定すると、このクウカンに図が付きます（中のモノはそのまま）。</p>
+        <button type="button" class="primary" onclick={() => app.openDraft({ kind: 'redraw', source })}>かたちを作る</button>
+        <p class="no-drawing-note">下書きが開きます。確定すると、このクウカンにかたちが付きます（中のモノはそのまま）。</p>
       {/if}
     </div>
   {:else}
     <svg
       role="application"
-      aria-label="クウカンの図"
+      aria-label="クウカンのかたち"
       bind:this={svgEl}
       viewBox="{vb.x} {vb.y} {vb.w} {vb.h}"
       style:--u={1 / ui.view.scale}

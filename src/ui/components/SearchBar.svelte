@@ -287,6 +287,7 @@
     </div>
 
     <div class="add-filters-area" class:is-open={isFilterOpen}>
+      <span class="filter-hint">フィルターを追加:</span>
       <button
         type="button"
         class="filter-add-btn"
@@ -294,7 +295,7 @@
           showCategoryPicker = true;
         }}
       >
-        ＋カテゴリ
+        ▼カテゴリ
       </button>
 
       <button
@@ -304,7 +305,7 @@
           showTagPicker = true;
         }}
       >
-        ＋タグ
+        ▼タグ
       </button>
 
       <button
@@ -314,7 +315,7 @@
           showPlacePicker = true;
         }}
       >
-        ＋置き場
+        ▼置き場
       </button>
 
       {#if !$app.query.unsetOnly}
@@ -552,11 +553,24 @@
     margin-left: auto;
   }
 
-  .filter-add-btn {
-    min-height: var(--touch);
-    padding: 0 var(--space-3);
+  .filter-hint {
     font-size: var(--font-size-small);
-    border-radius: var(--radius);
+    color: var(--text-muted);
+    user-select: none;
+    margin-right: 2px;
+  }
+
+  .filter-add-btn {
+    min-height: 28px;
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-small);
+    border-radius: var(--radius-pill, 14px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .filter-add-btn:hover {
+    background: var(--surface-2);
   }
 
   .clear-btn {

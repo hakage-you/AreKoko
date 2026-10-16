@@ -3,7 +3,7 @@
   import { getApp } from '../context';
   import type { Kuukan, Id } from '../../core/types';
   import { NIL_ID, UNSET_NAME, NAMELESS_NAME } from '../../core/constants';
-  import { itemsDirectlyIn, formatPlacePath, kuukanOfPlace } from '../../core/places';
+  import { itemsDirectlyIn, formatPlacePath, kuukanOfPlace, itemsWithin } from '../../core/places';
   import { renameKuukan } from '../../core/ops/kuukans';
   import { TEMPLATE_LIST } from '../../editor/templates';
   import type { TemplateId } from '../../editor/draft';
@@ -244,6 +244,8 @@
             class="inline-input"
           />
         {:else}
+          {@const directCount = $app.doc ? itemsDirectlyIn($app.doc, kuukan.id).length : 0}
+          {@const totalCount = $app.doc ? itemsWithin($app.doc, kuukan.id).length : 0}
           <div class="kuukan-title-block">
             <button
               type="button"
@@ -255,9 +257,10 @@
             >
               {node.isStorage ? node.ownerItemName : (kuukan.name || NAMELESS_NAME)}
             </button>
-            <span class="chip small muted">
-              {$app.doc ? itemsDirectlyIn($app.doc, kuukan.id).length : 0}件
-            </span>
+            <span class="chip small muted">モノの数: {directCount}</span>
+            {#if totalCount > directCount}
+              <span class="chip small muted">収納内を含めた合計: {totalCount}</span>
+            {/if}
           </div>
           {#if node.pathText}
             <span class="storage-path muted small">
@@ -272,13 +275,13 @@
           <button
             type="button"
             class="small"
-            title={hasDrawing(kuukan.id) ? '間取りや仕切り、目印を編集します' : 'このクウカンの間取り図を描きます'}
+            title={hasDrawing(kuukan.id) ? 'クウカンのかたちや仕切り、目印を編集します' : 'このクウカンのかたちを作ります'}
             onclick={(e) => {
               e.stopPropagation();
               handleEditKuukan(kuukan.id);
             }}
           >
-            {hasDrawing(kuukan.id) ? '間取り編集' : '図を描く'}
+            {hasDrawing(kuukan.id) ? 'かたちを編集' : 'かたちを作る'}
           </button>
 
           <div class="menu-container">
@@ -375,7 +378,7 @@
       <div class="start-options">
         <button type="button" class="start-option" onclick={() => (showTemplateDialog = true)}>
           <strong>形を選んで作る</strong>
-          <span>6畳間・L字のリビング・棚などの間取りから選びます。図の上でエリアに分けて使えます。</span>
+          <span>6畳間・L字のリビング・棚などのかたちから選びます。図の上でエリアに分けて使えます。</span>
           <span class="option-action">形を選ぶ →</span>
         </button>
         <div class="start-option">
@@ -453,7 +456,7 @@
                 {UNSET_NAME}
               </button>
               <span class="chip small muted">
-                {itemsDirectlyIn($app.doc, unsetKuukan.id).length}件
+                モノの数: {itemsDirectlyIn($app.doc, unsetKuukan.id).length}
               </span>
               <button
                 type="button"

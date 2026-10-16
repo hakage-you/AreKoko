@@ -124,9 +124,9 @@
             {:else}
               <button
                 type="button"
-                class="small placing-btn"
+                class="small primary placing-btn"
                 onclick={handleTogglePlacing}
-                title="間取りや棚の上にモノのマーク（点や長方形）を配置・移動します"
+                title="配置図の上にモノのマーク（点や長方形）を配置・移動します"
               >
                 モノを配置
               </button>
@@ -197,9 +197,9 @@
             {:else}
               <div class="no-drawing-card">
                 <div class="card-body">
-                  <h3 class="card-title">このクウカンにはまだ間取り図がありません</h3>
+                  <h3 class="card-title">このクウカンにはまだかたちがありません</h3>
                   <p class="card-desc">
-                    図を描くと、部屋や収納の中でのモノの位置を視覚的に管理できるようになります。
+                    クウカンのかたちを作ると、部屋や収納の中でのモノの位置を視覚的に管理できるようになります。
                   </p>
                 </div>
                 {#if kuukan}
@@ -208,7 +208,7 @@
                     class="primary small"
                     onclick={handleRedraw}
                   >
-                    図を描く
+                    かたちを作る
                   </button>
                 {/if}
               </div>

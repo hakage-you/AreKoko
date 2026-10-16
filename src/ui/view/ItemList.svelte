@@ -237,7 +237,7 @@
     }
   }
 
-  // 図面でエリアが選択された時、該当アコーディオンを展開してスクロール追従
+  // 配置図でエリアが選択された時、該当アコーディオンを展開してスクロール追従
   $effect(() => {
     if (area !== null) {
       if (collapsedAreaIds.has(area)) {
@@ -275,7 +275,7 @@
           onclick={toggleAllGroups}
           title={isAllCollapsed ? 'すべてのエリアを展開します' : 'すべてのエリアを折りたたみます'}
         >
-          {isAllCollapsed ? 'すべて開く' : 'すべて閉じる'}
+          {isAllCollapsed ? 'ぜんぶ展開' : 'ぜんぶ折りたたむ'}
         </button>
       {/if}
     </div>
@@ -289,7 +289,7 @@
           onclick={() => app.selectViewArea(null)}
           title="エリアの絞り込みを解除して全体を表示"
         >
-          すべて表示
+          解除
         </button>
       </div>
     {/if}

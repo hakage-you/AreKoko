@@ -38,7 +38,7 @@ export function computeViewHint(params: ViewHintParams): ViewHint {
   if (!isPlacing) {
     return {
       what: 'エリアを押すと、そのエリアのモノがリストに並びます',
-      how: 'もう一度押すと元に戻ります。収納を押すと「開く」が出ます。間取り図にモノのマークを付けるには、上の「モノを配置」へ。',
+      how: '再クリックで解除、収納を押すと中身を開けます。位置の登録は右上の「モノを配置」へ。',
       shortWhat: 'エリアで絞り込み',
       shortHow: '収納を押すと中身を開けます',
       actionText: '',
@@ -64,9 +64,9 @@ export function computeViewHint(params: ViewHintParams): ViewHint {
     if (attachTool === 'rect') {
       return {
         what: `${displayName}を四角で配置します`,
-        how: '図の上をドラッグして大きさと位置を指定してください。',
+        how: '配置図の上をドラッグして大きさと位置を指定してください。',
         shortWhat: displayName,
-        shortHow: '図面をドラッグして四角で配置',
+        shortHow: '配置図をドラッグして四角で配置',
         actionText: 'ドラッグして描画',
       };
     }
@@ -130,10 +130,10 @@ export function computeViewHint(params: ViewHintParams): ViewHint {
 
   // 4. 配置モード・モノ未選択
   return {
-    what: 'モノの配置：間取りや棚の上にモノを配置・移動します',
-    how: '右のリストで「配置する」を押すか、図の上のマークを押して選んでください。終わったら右上の「配置を終了」を押します。',
+    what: 'モノの配置：配置図の上でモノを配置・移動します',
+    how: '右のリストで「配置する」を押すか、配置図の上のマークを押して選んでください。終わったら右上の「配置を終了」を押します。',
     shortWhat: 'モノの配置',
-    shortHow: 'リストまたは図面のモノを選んでください',
+    shortHow: 'リストまたは配置図のモノを選んでください',
     actionText: '',
   };
 }
