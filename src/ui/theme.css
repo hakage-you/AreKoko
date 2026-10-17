@@ -4,11 +4,13 @@
 html[data-theme='light'] {
   color-scheme: light;
 
-  /* 色 */
+  /* 色（ライトモード） */
   --bg: #f7f6f3;
   --surface: #ffffff;
   --surface-2: #f0eee9;
+  --surface-3: #e6e3dc;
   --border: #dedad2;
+  --border-strong: #c8c3b8;
   --text: #24221f;
   --text-muted: #6b665e;
   --accent: #2f6f5e;
@@ -30,11 +32,12 @@ html[data-theme='light'] {
   --area-fill-4: rgba(120, 80, 180, 0.10);
   --area-fill-5: rgba(30, 150, 150, 0.10);
 
-  /* 文字 */
+  /* 文字（PC・デスクトップ基準） */
   --font: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic UI', sans-serif;
   --font-size: 15px;
   --font-size-small: 13px;
-  --font-size-large: 18px;
+  --font-size-tiny: 11px;
+  --font-size-large: 20px;
   --line-height: 1.6;
 
   /* 余白と形 */
@@ -46,13 +49,29 @@ html[data-theme='light'] {
   --space-6: 32px;
   --radius: 8px;
   --radius-small: 4px;
+  --radius-pill: 999px;
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 
-  /* 寸法 */
-  --touch: 40px;          /* 押せる部分の最小の高さ */
+  /* 寸法（PC / デスクトップ基準：適度な情報密度） */
+  --touch: 36px;          /* PCでの標準ボタン・入力欄高さ */
+  --touch-compact: 28px;  /* テーブル行内やインラインツールの密度 */
   --row-height: 44px;     /* サガシモノの表の行の高さ（仮想スクロールで使う） */
   --header-height: 52px;
   --detail-width: 380px;  /* パソコンでのモノの詳細の幅 */
+
+  /* アニメーション */
+  --duration-fast: 0.15s;
+  --ease-default: ease;
+}
+
+@media (max-width: 767.98px) {
+  :root,
+  html[data-theme='light'] {
+    /* モバイル（Compact: タッチ人間工学優先） */
+    --touch: 44px;          /* 指で確実に押せる 44px タッチターゲット */
+    --touch-compact: 36px;  /* モバイルでの最小許容サイズ */
+    --font-size-large: 18px; /* 狭い幅でも折り返し圧迫を防ぐ見出しサイズ */
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,7 +80,9 @@ html[data-theme='light'] {
     --bg: #181715;
     --surface: #22201d;
     --surface-2: #2b2925;
+    --surface-3: #34312c;
     --border: #3b3833;
+    --border-strong: #4e4a43;
     --text: #ece8e1;
     --text-muted: #a39d93;
     --accent: #6cc3a8;
@@ -91,7 +112,9 @@ html[data-theme='dark'] {
   --bg: #181715;
   --surface: #22201d;
   --surface-2: #2b2925;
+  --surface-3: #34312c;
   --border: #3b3833;
+  --border-strong: #4e4a43;
   --text: #ece8e1;
   --text-muted: #a39d93;
   --accent: #6cc3a8;
@@ -112,6 +135,14 @@ html[data-theme='dark'] {
   --area-fill-3: rgba(240, 138, 118, 0.22);
   --area-fill-4: rgba(186, 140, 245, 0.22);
   --area-fill-5: rgba(70, 200, 200, 0.22);
+}
+
+@media (max-width: 767.98px) {
+  html[data-theme='dark'] {
+    --touch: 44px;
+    --touch-compact: 36px;
+    --font-size-large: 18px;
+  }
 }
 
 *,
@@ -158,6 +189,9 @@ button,
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-default),
+              border-color var(--duration-fast) var(--ease-default),
+              color var(--duration-fast) var(--ease-default);
 }
 button:hover:not(:disabled) {
   background: var(--surface-2);
@@ -188,9 +222,10 @@ button.ghost {
   background: transparent;
 }
 button.small {
-  min-height: 32px;
+  min-height: var(--touch-compact);
   padding: 0 var(--space-3);
   font-size: var(--font-size-small);
+  border-radius: var(--radius-small);
 }
 
 /* 入力 */
@@ -220,18 +255,24 @@ label {
   margin-bottom: var(--space-1);
 }
 
-/* チップ（検索の条件、タグ） */
+/* チップ（検索の条件、タグ、バッジ） */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   min-height: 28px;
   padding: 0 var(--space-2);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-2);
   border: 1px solid var(--border);
   font-size: var(--font-size-small);
   white-space: nowrap;
+}
+button.chip,
+.chip button {
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
 }
 .chip.accent {
   background: var(--accent-soft);
@@ -240,8 +281,15 @@ label {
 .chip.small {
   min-height: 22px;
   padding: 0 var(--space-2);
-  font-size: 11px;
+  font-size: var(--font-size-tiny);
   line-height: 1;
+}
+button.chip.small,
+.chip.small button {
+  min-height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-tiny);
 }
 
 /* ダイアログ */

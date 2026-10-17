@@ -389,8 +389,8 @@
     padding: var(--space-4);
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
     flex-shrink: 0;
   }
 
@@ -417,11 +417,11 @@
     min-height: 300px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius);
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow);
     position: relative;
   }
 

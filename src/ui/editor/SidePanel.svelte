@@ -4,7 +4,7 @@
   import { getEditorUi } from './editorUi.svelte';
   import { editorDoc, editorKuukan, applyToEditor } from './target';
   import { addDraftOutline, removeDraftOutline } from '../../editor/draft';
-  import { renameKuukan, setAreaLabel } from '../../core/ops/kuukans';
+  import { renameKuukan, setAreaLabel, setKuukanIcon } from '../../core/ops/kuukans';
   import { stretchKuukan, setRealSize } from '../../core/ops/kuukanDrawing';
   import {
     renameArea,
@@ -20,7 +20,9 @@
   import { computeRegions } from '../../geometry/regions';
   import { isRectangle, boundingRect } from '../../geometry/polygon';
   import { describePartitionLine, describeLineRemoval, type PartitionLineInfo } from '../../editor/view';
-  import type { Id, Axis, Rotation } from '../../core/types';
+  import type { Id, Axis, Rotation, KuukanIcon } from '../../core/types';
+  import KuukanThumb from '../components/KuukanThumb.svelte';
+  import KuukanIconPickerModal from '../components/KuukanIconPickerModal.svelte';
 
   const app = getApp();
   const ui = getEditorUi();
@@ -108,6 +110,14 @@
     const trimmed = areaLabelInput.trim();
     if (!trimmed || trimmed === targetKuukan.areaLabel) return;
     applyToEditor(app, $app, (d) => setAreaLabel(d, kuukanId, trimmed));
+  }
+
+  let showIconPicker = $state(false);
+
+  function handleSaveIcon(icon: KuukanIcon | null) {
+    if (!kuukanId) return;
+    applyToEditor(app, $app, (d) => setKuukanIcon(d, kuukanId, icon));
+    showIconPicker = false;
   }
 
   function commitRealSize() {
@@ -637,14 +647,14 @@
         <div class="field-block outline-mode-block">
           {#if !hasDrawing}
             <p class="muted small desc-text">
-              クウカンのかたちを作らずに確定すると、かたちのないクウカン（リストのみ）になります。
+              かたち（図面）を作らずに確定すると、リストのみで管理するクウカンになります。図面は後からいつでも追加できます。
             </p>
             <button
               type="button"
               class="small"
               onclick={handleAddOutline}
             >
-              クウカンのかたちを作る
+              かたち（図面）を作る
             </button>
           {:else if canRemoveOutline}
             <button
@@ -652,7 +662,7 @@
               class="small ghost"
               onclick={handleRemoveOutline}
             >
-              クウカンのかたちを設定しない
+              かたちを削除（リストのみにする）
             </button>
           {/if}
         </div>
@@ -690,6 +700,26 @@
             if (e.key === 'Enter') commitAreaLabel();
           }}
         />
+      </div>
+
+      <div class="field-block">
+        <div class="group-label">アイコン</div>
+        <div class="icon-setting-row">
+          <KuukanThumb
+            {doc}
+            {kuukanId}
+            isStorage={targetKuukan.owner !== null}
+            forceCharIcon={true}
+            size={36}
+          />
+          <button
+            type="button"
+            class="small ghost"
+            onclick={() => (showIconPicker = true)}
+          >
+            アイコンを変更…
+          </button>
+        </div>
       </div>
 
       {#if hasDrawing}
@@ -840,7 +870,23 @@
   </section>
 </div>
 
+{#if showIconPicker && doc && targetKuukan && kuukanId}
+  <KuukanIconPickerModal
+    {doc}
+    kuukan={targetKuukan}
+    displayName={kuukanDisplayName}
+    isStorage={targetKuukan.owner !== null}
+    onSave={handleSaveIcon}
+    onClose={() => (showIconPicker = false)}
+  />
+{/if}
+
 <style>
+  .icon-setting-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
   /* 入力欄に結び付かない、まとまりの見出し（label と同じ見た目） */
   .group-label {
     color: var(--text-muted);
@@ -1023,6 +1069,7 @@
 
   .node-name {
     flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1052,7 +1099,7 @@
   }
 
   .selected-line-summary {
-    font-size: var(--font-size-normal);
+    font-size: var(--font-size);
     color: var(--text);
   }
 

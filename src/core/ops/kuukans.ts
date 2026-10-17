@@ -1,9 +1,24 @@
 // クウカンの操作。詳細設計 8章、付録A.13。
 
-import type { Id, ArekokoDocument, Kuukan } from '../types';
-import { DEFAULT_AREA_LABEL, NIL_ID } from '../constants';
+import type { Id, ArekokoDocument, Kuukan, KuukanIcon, BuiltinIconId } from '../types';
+import { DEFAULT_AREA_LABEL, NIL_ID, isLabelColor } from '../constants';
 import { planRemoveKuukan, removeKuukan } from '../relocate';
 import { OpError, type OpContext, type OpResult, type Relocation } from './common';
+
+export const BUILTIN_ICON_IDS: readonly BuiltinIconId[] = [
+  'home',
+  'shelf',
+  'box',
+  'drawer',
+  'closet',
+  'kitchen',
+  'tool',
+  'book',
+] as const;
+
+export function isBuiltinIconId(id: unknown): id is BuiltinIconId {
+  return typeof id === 'string' && (BUILTIN_ICON_IDS as readonly string[]).includes(id);
+}
 
 export function createKuukan(
   doc: ArekokoDocument,
@@ -98,6 +113,96 @@ export function setAreaLabel(
   const newKuukans = doc.membership.kuukans.map(k => {
     if (k.id === id) {
       return { ...k, areaLabel: label };
+    }
+    return k;
+  });
+
+  const newDoc: ArekokoDocument = {
+    ...doc,
+    membership: {
+      ...doc.membership,
+      kuukans: newKuukans,
+    },
+  };
+
+  return {
+    doc: newDoc,
+    moved: [],
+    created: [],
+  };
+}
+
+export function setKuukanIcon(
+  doc: ArekokoDocument,
+  id: Id,
+  icon: KuukanIcon | null | undefined,
+): OpResult {
+  if (id === NIL_ID) {
+    throw new OpError('reserved', '未設定のクウカンはアイコンを変更できません');
+  }
+
+  const target = doc.membership.kuukans.find((k) => k.id === id);
+  if (!target) {
+    throw new OpError('notFound', `クウカンが見つかりません: ${id}`);
+  }
+
+  let normalizedIcon: KuukanIcon | undefined = undefined;
+  if (icon && typeof icon === 'object') {
+    let svg: BuiltinIconId | undefined = undefined;
+    if (icon.svg !== undefined && icon.svg !== null && (icon.svg as unknown) !== '') {
+      if (!isBuiltinIconId(icon.svg)) {
+        throw new OpError('invalidInput', '組み込みアイコンの指定が不正です');
+      }
+      svg = icon.svg;
+    }
+    let char: string | undefined = undefined;
+    if (typeof icon.char === 'string' && icon.char.trim() !== '') {
+      char = Array.from(icon.char.trim())[0];
+    }
+    let bg: string | undefined = undefined;
+    if (icon.bg !== undefined && icon.bg !== null && icon.bg !== '') {
+      if (!isLabelColor(icon.bg)) {
+        throw new OpError('invalidInput', '背景色の指定が不正です');
+      }
+      bg = icon.bg;
+    }
+    let color: string | undefined = undefined;
+    if (icon.color !== undefined && icon.color !== null && icon.color !== '') {
+      if (!isLabelColor(icon.color)) {
+        throw new OpError('invalidInput', '文字色の指定が不正です');
+      }
+      color = icon.color;
+    }
+
+    if (svg !== undefined || char !== undefined || bg !== undefined || color !== undefined) {
+      normalizedIcon = {
+        ...(svg !== undefined ? { svg } : {}),
+        ...(char !== undefined ? { char } : {}),
+        ...(bg !== undefined ? { bg } : {}),
+        ...(color !== undefined ? { color } : {}),
+      };
+    }
+  }
+
+  const currentIcon = target.icon;
+  if (
+    currentIcon?.svg === normalizedIcon?.svg &&
+    currentIcon?.char === normalizedIcon?.char &&
+    currentIcon?.bg === normalizedIcon?.bg &&
+    currentIcon?.color === normalizedIcon?.color
+  ) {
+    return { doc, moved: [], created: [] };
+  }
+
+  const newKuukans = doc.membership.kuukans.map((k) => {
+    if (k.id === id) {
+      const updated = { ...k };
+      if (normalizedIcon) {
+        updated.icon = normalizedIcon;
+      } else {
+        delete updated.icon;
+      }
+      return updated;
     }
     return k;
   });

@@ -3,6 +3,7 @@ import {
   createKuukan,
   renameKuukan,
   setAreaLabel,
+  setKuukanIcon,
   deleteKuukan,
   planDeleteKuukan,
 } from '../../../src/core/ops/kuukans';
@@ -129,6 +130,103 @@ describe('kuukans ops', () => {
       deleteKuukan(doc, storageKuukan, ctx);
     } catch (e) {
       expect((e as OpError).code).toBe('notTopLevel');
+    }
+  });
+
+  it('setKuukanIcon: アイコン（文字・背景色・文字色）を設定・更新・削除できる', () => {
+    const base = createBaseDoc();
+    const roomA = '01920000-0000-7000-8000-000000000001';
+    const itemId = '01920000-0000-7000-8000-000000000002';
+    const storageKuukan = '01920000-0000-7000-8000-000000000003';
+
+    const doc = deepFreeze({
+      ...base,
+      membership: {
+        ...base.membership,
+        kuukans: [
+          ...base.membership.kuukans,
+          { id: roomA, name: 'リビング', owner: null, areaLabel: 'エリア' },
+          { id: storageKuukan, owner: itemId, areaLabel: '段' },
+        ],
+        items: [{ id: itemId, name: '棚', place: roomA, category: null, tags: [] }],
+      },
+    });
+
+    // 正常系: クウカンにアイコンを設定
+    const res1 = setKuukanIcon(doc, roomA, {
+      char: 'リ',
+      bg: '#0284c7',
+      color: '#ffffff',
+    });
+    const k1 = res1.doc.membership.kuukans.find((k) => k.id === roomA)!;
+    expect(k1.icon).toEqual({
+      char: 'リ',
+      bg: '#0284c7',
+      color: '#ffffff',
+    });
+    expect(validateDocument(res1.doc)).toEqual([]);
+
+    // 正常系: 複数文字を渡したときは先頭1文字に正規化される
+    const res2 = setKuukanIcon(res1.doc, roomA, {
+      char: 'LDK',
+      bg: '#16a34a',
+    });
+    const k2 = res2.doc.membership.kuukans.find((k) => k.id === roomA)!;
+    expect(k2.icon).toEqual({
+      char: 'L',
+      bg: '#16a34a',
+    });
+
+    // 正常系: 組み込みSVGアイコンを設定できる
+    const resSvg = setKuukanIcon(res2.doc, roomA, {
+      svg: 'shelf',
+      bg: '#0284c7',
+      color: '#ffffff',
+    });
+    const kSvg = resSvg.doc.membership.kuukans.find((k) => k.id === roomA)!;
+    expect(kSvg.icon).toEqual({
+      svg: 'shelf',
+      bg: '#0284c7',
+      color: '#ffffff',
+    });
+
+    // 正常系: 収納クウカンにもアイコンを設定できる
+    const res3 = setKuukanIcon(resSvg.doc, storageKuukan, {
+      char: '棚',
+      bg: '#d97706',
+    });
+    const k3 = res3.doc.membership.kuukans.find((k) => k.id === storageKuukan)!;
+    expect(k3.icon).toEqual({
+      char: '棚',
+      bg: '#d97706',
+    });
+
+    // 正常系: icon: null でアイコンを削除
+    const res4 = setKuukanIcon(res3.doc, roomA, null);
+    const k4 = res4.doc.membership.kuukans.find((k) => k.id === roomA)!;
+    expect(k4.icon).toBeUndefined();
+
+    // 異常系: NIL_ID は reserved エラー
+    expect(() => setKuukanIcon(doc, NIL_ID, { char: '未' })).toThrowError(OpError);
+    try {
+      setKuukanIcon(doc, NIL_ID, { char: '未' });
+    } catch (e) {
+      expect((e as OpError).code).toBe('reserved');
+    }
+
+    // 異常系: 存在しないクウカンは notFound エラー
+    expect(() => setKuukanIcon(doc, '01920000-0000-7000-8000-999999999999', { char: 'X' })).toThrowError(OpError);
+
+    // 異常系: 不正な色形式は invalidInput エラー
+    expect(() => setKuukanIcon(doc, roomA, { bg: 'red' })).toThrowError(OpError);
+    expect(() => setKuukanIcon(doc, roomA, { color: 'rgba(0,0,0,1)' })).toThrowError(OpError);
+
+    // 異常系: 不正な組み込みアイコンIDは invalidInput エラー
+    expect(() => setKuukanIcon(doc, roomA, { svg: 'unknown' as any })).toThrowError(OpError);
+    try {
+      setKuukanIcon(doc, roomA, { svg: 'unknown' as any });
+    } catch (e) {
+      expect((e as OpError).code).toBe('invalidInput');
     }
   });
 });

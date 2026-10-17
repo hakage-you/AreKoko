@@ -10,6 +10,8 @@ export interface PlaceNode {
   id: Id;
   name: string;
   depth: number;
+  kind?: 'kuukan' | 'area' | 'unset';
+  kuukanId?: Id;
   isStorage?: boolean;
   isCurrent: boolean;
   isSelectable: boolean;
@@ -65,6 +67,8 @@ export function groupPlaceTreeNodes(options: GroupPlaceTreeOptions): PlaceSectio
         id: area.id,
         name: area.name,
         depth,
+        kind: 'area',
+        kuukanId: area.kuukan,
         isCurrent: current === area.id,
         isSelectable: candidateIds.has(area.id),
       });
@@ -84,6 +88,8 @@ export function groupPlaceTreeNodes(options: GroupPlaceTreeOptions): PlaceSectio
         id: storageKuukan.id,
         name: it.name,
         depth,
+        kind: 'kuukan',
+        kuukanId: storageKuukan.id,
         isStorage: true,
         isCurrent: current === storageKuukan.id,
         isSelectable: candidateIds.has(storageKuukan.id),
@@ -103,6 +109,8 @@ export function groupPlaceTreeNodes(options: GroupPlaceTreeOptions): PlaceSectio
       id: k.id,
       name: k.name ?? NAMELESS_NAME,
       depth: 0,
+      kind: 'kuukan',
+      kuukanId: k.id,
       isCurrent: current === k.id,
       isSelectable: candidateIds.has(k.id),
     });
@@ -119,6 +127,8 @@ export function groupPlaceTreeNodes(options: GroupPlaceTreeOptions): PlaceSectio
         id: NIL_ID,
         name: UNSET_NAME,
         depth: 0,
+        kind: 'unset',
+        kuukanId: NIL_ID,
         isCurrent: current === NIL_ID,
         isSelectable: true,
       }

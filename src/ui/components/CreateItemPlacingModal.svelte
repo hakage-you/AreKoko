@@ -174,9 +174,13 @@
   }
 
   .close-btn {
-    font-size: var(--text-base);
+    font-size: var(--font-size);
     line-height: 1;
-    padding: var(--space-1) var(--space-2);
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
   }
 
   .modal-body {
@@ -200,9 +204,9 @@
   }
 
   .item-name-value {
-    font-size: var(--text-base);
+    font-size: var(--font-size);
     font-weight: 600;
-    color: var(--fg);
+    color: var(--text);
   }
 
   .modal-section {
@@ -212,9 +216,9 @@
   }
 
   .section-title {
-    font-size: var(--text-sm);
+    font-size: var(--font-size-small);
     font-weight: 600;
-    color: var(--fg);
+    color: var(--text);
   }
 
   .area-options-grid,
@@ -281,7 +285,7 @@
   }
 
   .choice-card-name {
-    font-size: var(--text-sm);
+    font-size: var(--font-size-small);
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;

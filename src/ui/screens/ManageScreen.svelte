@@ -636,8 +636,8 @@
     min-width: 0;
     padding: 0;
     border-radius: 50%;
-    border: 1.5px dashed var(--border);
-    background: transparent;
+    border: 1.5px dashed var(--border-strong);
+    background: var(--surface-2);
     cursor: pointer;
     box-sizing: border-box;
     transition: transform var(--duration-fast), border-color var(--duration-fast);

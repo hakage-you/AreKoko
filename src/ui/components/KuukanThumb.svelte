@@ -1,18 +1,31 @@
 <script lang="ts">
-  import type { ArekokoDocument, Id } from '../../core/types';
-  import { NIL_ID } from '../../core/constants';
+  import type { ArekokoDocument, Id, KuukanIcon } from '../../core/types';
+  import { NIL_ID, NAMELESS_NAME } from '../../core/constants';
   import { buildAreaTree } from '../../core/indexes';
   import { computeRegions } from '../../geometry/regions';
   import { lineSegments } from '../../editor/view';
+  import { getKuukanInitial, getKuukanIconStyle } from '../color';
+  import { getBuiltinIcon } from '../icons';
 
   interface Props {
     doc: ArekokoDocument | null;
     kuukanId: Id;
     isStorage?: boolean;
     size?: number;
+    customIcon?: KuukanIcon;
+    customName?: string;
+    forceCharIcon?: boolean;
   }
 
-  let { doc, kuukanId, isStorage = false, size = 48 }: Props = $props();
+  let {
+    doc,
+    kuukanId,
+    isStorage = false,
+    size = 48,
+    customIcon,
+    customName,
+    forceCharIcon = false,
+  }: Props = $props();
 
   interface ThumbLine {
     x1: number;
@@ -134,21 +147,55 @@
     };
   });
 
-  const fallbackIcon = $derived.by(() => {
-    if (kuukanId === NIL_ID) return '📥';
-    if (isStorage) return '🗄️';
-    return '🏠';
+  const targetKuukan = $derived.by(() => {
+    if (!doc || !kuukanId) return null;
+    return doc.membership.kuukans.find((k) => k.id === kuukanId) ?? null;
   });
+
+  const effectiveIcon = $derived.by(() => {
+    return customIcon ?? targetKuukan?.icon ?? null;
+  });
+
+  const kuukanName = $derived.by(() => {
+    if (customName !== undefined) return customName;
+    if (kuukanId === NIL_ID) return '未設定';
+    if (!doc) return '';
+    if (isStorage) {
+      if (targetKuukan?.owner) {
+        const item = doc.membership.items.find((i) => i.id === targetKuukan.owner);
+        return item?.name ?? targetKuukan.name ?? NAMELESS_NAME;
+      }
+    }
+    return targetKuukan?.name ?? NAMELESS_NAME;
+  });
+
+  const builtinIcon = $derived.by(() => {
+    return getBuiltinIcon(effectiveIcon?.svg);
+  });
+
+  const displayChar = $derived.by(() => {
+    if (effectiveIcon?.char) return effectiveIcon.char;
+    return getKuukanInitial(kuukanName);
+  });
+
+  const iconStyle = $derived.by(() => {
+    return getKuukanIconStyle(effectiveIcon);
+  });
+
+  const showDrawing = $derived(Boolean(thumbData && !effectiveIcon && !forceCharIcon));
 </script>
 
 <div
   class="kuukan-thumb"
-  class:has-drawing={Boolean(thumbData)}
+  class:has-drawing={showDrawing}
+  class:is-unset={kuukanId === NIL_ID}
+  class:is-char={!showDrawing && kuukanId !== NIL_ID}
   style:width="{size}px"
   style:height="{size}px"
+  style="{!showDrawing && kuukanId !== NIL_ID ? iconStyle : ''}"
   aria-hidden="true"
 >
-  {#if thumbData}
+  {#if showDrawing && thumbData}
     <svg
       viewBox={thumbData.viewBox}
       preserveAspectRatio="xMidYMid meet"
@@ -200,23 +247,83 @@
         {/if}
       {/each}
     </svg>
+  {:else if kuukanId === NIL_ID}
+    <svg
+      viewBox="0 0 24 24"
+      class="unset-tray-svg"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+    </svg>
+  {:else if builtinIcon}
+    <svg
+      viewBox="0 0 24 24"
+      class="builtin-svg-icon"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      style:width="{Math.round(size * 0.58)}px"
+      style:height="{Math.round(size * 0.58)}px"
+    >
+      <path d={builtinIcon.path} />
+    </svg>
   {:else}
-    <span class="fallback-icon">{fallbackIcon}</span>
+    <span class="char-icon" style:font-size="{Math.round(size * 0.46)}px">
+      {displayChar}
+    </span>
   {/if}
 </div>
 
 <style>
   .kuukan-thumb {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: var(--radius-small);
     flex-shrink: 0;
-    padding: 3px;
     box-sizing: border-box;
     overflow: hidden;
+    user-select: none;
+    line-height: 1;
+  }
+
+  .kuukan-thumb.has-drawing {
+    padding: 3px;
+  }
+
+  .unset-tray-svg {
+    width: 60%;
+    height: 60%;
+    color: var(--text-muted);
+  }
+
+  .kuukan-thumb.is-char {
+    font-weight: 600;
+    color: var(--text);
+    transition: background-color var(--duration-fast), color var(--duration-fast);
+  }
+
+  .char-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .builtin-svg-icon {
+    display: block;
+    color: inherit;
+    flex-shrink: 0;
   }
 
   .thumb-svg {
@@ -246,11 +353,5 @@
     fill: var(--accent);
     stroke: var(--surface);
     stroke-width: 1px;
-  }
-
-  .fallback-icon {
-    font-size: 20px;
-    line-height: 1;
-    user-select: none;
   }
 </style>

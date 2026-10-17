@@ -1158,6 +1158,16 @@
       <!-- 2. エリアの領域 -->
       <g class="areas-layer">
         {#if regions}
+          <defs>
+            {#each leafNodes as leafId (leafId)}
+              {@const poly = regions.get(leafId)}
+              {#if poly}
+                <clipPath id="ed-area-clip-{leafId}">
+                  <polygon points={poly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')} />
+                </clipPath>
+              {/if}
+            {/each}
+          </defs>
           {#each leafNodes as leafId, idx}
             {@const poly = regions.get(leafId)}
             {#if poly}
@@ -1174,9 +1184,11 @@
                 x={center[0] * aspect}
                 y={center[1]}
                 class="area-label"
+                clip-path="url(#ed-area-clip-{leafId})"
                 text-anchor="middle"
                 dominant-baseline="central"
               >
+                <title>{areaDisplayName(leafId)}</title>
                 {areaDisplayName(leafId)}
               </text>
             {/if}

@@ -565,8 +565,11 @@
   }
 
   .close-button {
-    padding: var(--space-1);
-    min-height: auto;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0;
     font-size: var(--font-size);
   }
 
@@ -592,6 +595,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .section-header button {
+    min-height: 24px;
+    height: 24px;
+    padding: 0 var(--space-2);
+    margin-right: calc(-1 * var(--space-2));
   }
 
   .section-label {
@@ -707,8 +717,8 @@
     width: 100%;
     background: var(--surface-2);
     border: 1px solid var(--border);
-    color: var(--fg);
-    font-size: var(--text-sm);
+    color: var(--text);
+    font-size: var(--font-size-small);
     font-weight: 500;
     padding: var(--space-1) var(--space-3);
     border-radius: var(--radius);

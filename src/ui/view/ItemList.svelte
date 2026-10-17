@@ -14,7 +14,6 @@
     quickSearch,
     type QuickResult,
   } from '../../view/model';
-  import { getBadgeStyle } from '../color';
   import {
     groupItemsByArea,
     type GroupItemsResult,
@@ -667,7 +666,7 @@
     padding: var(--space-1) var(--space-2);
     background: var(--accent-soft);
     border: 1px solid var(--accent);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-small);
     font-size: var(--font-size-small);
   }
 
@@ -684,7 +683,10 @@
     font-weight: 600;
     cursor: pointer;
     padding: 2px 6px;
-    border-radius: var(--radius-sm);
+    height: 20px;
+    min-height: 20px;
+    line-height: 1;
+    border-radius: var(--radius-small);
     transition: background var(--duration-fast);
   }
 
@@ -792,20 +794,18 @@
   .item-sub-row {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    flex-wrap: wrap;
+    gap: 2px var(--space-2);
     font-size: 11px;
     line-height: 1.2;
     min-width: 0;
-    overflow: hidden;
   }
 
   .sub-category {
-    font-weight: normal;
     font-size: 11px;
     color: var(--text-muted);
     white-space: nowrap;
     flex-shrink: 0;
-    opacity: 0.8;
   }
 
   .sub-tag,
@@ -814,7 +814,6 @@
     font-size: 11px;
     white-space: nowrap;
     flex-shrink: 0;
-    opacity: 0.7;
   }
 
   .badge {
@@ -947,6 +946,13 @@
     border-radius: var(--radius-small);
   }
 
+  .shape-toggle-btn {
+    min-height: 24px;
+    height: 24px;
+    padding: 0 6px;
+    font-size: var(--font-size-tiny);
+  }
+
   .shape-toggle-btn.active {
     background: var(--accent);
     color: var(--accent-text);
@@ -960,7 +966,7 @@
   }
 
   .toggle-all-btn {
-    font-size: 11px;
+    font-size: var(--font-size-tiny);
     padding: 2px 6px;
     min-height: 24px;
     height: 24px;

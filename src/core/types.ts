@@ -20,6 +20,29 @@ export interface Notice {
 
 // ---- 所属の層 ----
 
+/** 組み込みSVGアイコンの識別子 */
+export type BuiltinIconId =
+  | 'home' // 部屋・家
+  | 'shelf' // 棚・ラック
+  | 'box' // 箱・コンテナ
+  | 'drawer' // 引き出し・チェスト
+  | 'closet' // クローゼット・衣類
+  | 'kitchen' // キッチン・食器
+  | 'tool' // 工具・物置
+  | 'book'; // 書類・本
+
+/** クウカンのアイコン設定（一文字または組み込みSVGアイコン） */
+export interface KuukanIcon {
+  /** 組み込みSVGアイコンID（指定時はSVGアイコンを表示） */
+  svg?: BuiltinIconId;
+  /** 表示する文字（1文字。svg未指定時に使用。未指定時はクウカン名の先頭1文字） */
+  char?: string;
+  /** 背景色（#rrggbb形式。未指定時はテーマ色） */
+  bg?: string;
+  /** 文字・アイコン色（#rrggbb形式。未指定時は自動計算またはテーマ色） */
+  color?: string;
+}
+
 export interface Kuukan {
   id: Id;
   /** どこにも置かれていないクウカンだけが持つ。収納のクウカンは持ち主のモノの名前で表示する。 */
@@ -28,6 +51,8 @@ export interface Kuukan {
   owner: Id | null;
   /** エリアの呼び名。初期値は「エリア」。 */
   areaLabel: string;
+  /** アイコン設定（一文字アイコン） */
+  icon?: KuukanIcon;
   notices?: Notice[];
 }
 

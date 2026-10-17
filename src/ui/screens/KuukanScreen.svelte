@@ -4,11 +4,13 @@
   import type { Kuukan, Id } from '../../core/types';
   import { NIL_ID, UNSET_NAME, NAMELESS_NAME } from '../../core/constants';
   import { itemsDirectlyIn, formatPlacePath, kuukanOfPlace, itemsWithin } from '../../core/places';
-  import { renameKuukan } from '../../core/ops/kuukans';
+  import { renameKuukan, setKuukanIcon } from '../../core/ops/kuukans';
+  import type { KuukanIcon } from '../../core/types';
   import { TEMPLATE_LIST } from '../../editor/templates';
   import type { TemplateId } from '../../editor/draft';
   import TemplateThumb from '../components/TemplateThumb.svelte';
   import KuukanThumb from '../components/KuukanThumb.svelte';
+  import KuukanIconPickerModal from '../components/KuukanIconPickerModal.svelte';
 
   const app = getApp();
 
@@ -19,6 +21,11 @@
   let showCreateForm = $state(false);
   let openMenuKuukanId = $state<Id | null>(null);
   let collapsedKuukans = $state(new Set<Id>());
+  let iconEditingTarget = $state<{
+    kuukan: Kuukan;
+    displayName: string;
+    isStorage: boolean;
+  } | null>(null);
 
   interface KuukanNode {
     kuukan: Kuukan;
@@ -172,6 +179,22 @@
     openMenuKuukanId = null;
   }
 
+  function openIconPicker(node: KuukanNode) {
+    closeMenu();
+    iconEditingTarget = {
+      kuukan: node.kuukan,
+      displayName: node.isStorage ? node.ownerItemName : (node.kuukan.name || NAMELESS_NAME),
+      isStorage: node.isStorage,
+    };
+  }
+
+  function handleSaveIcon(icon: KuukanIcon | null) {
+    if (!iconEditingTarget) return;
+    const targetId = iconEditingTarget.kuukan.id;
+    app.apply((doc) => setKuukanIcon(doc, targetId, icon));
+    iconEditingTarget = null;
+  }
+
   function handleCardClick(id: Id, e: MouseEvent) {
     const target = e.target as HTMLElement | null;
     if (target?.closest('button, input, [role="menu"], [role="menuitem"]')) {
@@ -190,6 +213,9 @@
       }
       if (showTemplateDialog) {
         showTemplateDialog = false;
+      }
+      if (iconEditingTarget !== null) {
+        iconEditingTarget = null;
       }
     }
   }}
@@ -226,7 +252,18 @@
         {:else if level > 0}
           <span class="tree-bullet" aria-hidden="true">└</span>
         {/if}
-        <KuukanThumb doc={$app.doc} kuukanId={kuukan.id} isStorage={node.isStorage} size={36} />
+        <button
+          type="button"
+          class="thumb-btn"
+          aria-label="{node.isStorage ? node.ownerItemName : (kuukan.name || NAMELESS_NAME)}のアイコンを変更"
+          title="アイコンを変更"
+          onclick={(e) => {
+            e.stopPropagation();
+            openIconPicker(node);
+          }}
+        >
+          <KuukanThumb doc={$app.doc} kuukanId={kuukan.id} isStorage={node.isStorage} size={36} />
+        </button>
       </div>
 
       <div class="kuukan-info">
@@ -250,6 +287,7 @@
             <button
               type="button"
               class="kuukan-name kuukan-name-btn"
+              title={node.isStorage ? node.ownerItemName : (kuukan.name || NAMELESS_NAME)}
               onclick={(e) => {
                 e.stopPropagation();
                 app.openView(kuukan.id);
@@ -259,7 +297,7 @@
             </button>
             <span class="chip small muted">モノの数: {directCount}</span>
             {#if totalCount > directCount}
-              <span class="chip small muted">収納内を含めた合計: {totalCount}</span>
+              <span class="chip small muted total-count-chip">収納内を含めた合計: {totalCount}</span>
             {/if}
           </div>
           {#if node.pathText}
@@ -304,6 +342,14 @@
                   onclick={() => handleDuplicateKuukan(kuukan.id)}
                 >
                   複製
+                </button>
+                <button
+                  type="button"
+                  class="menu-item"
+                  role="menuitem"
+                  onclick={() => openIconPicker(node)}
+                >
+                  アイコンを変更
                 </button>
                 {#if !node.isStorage}
                   <button
@@ -539,6 +585,17 @@
   </div>
 {/if}
 
+{#if iconEditingTarget && $app.doc}
+  <KuukanIconPickerModal
+    doc={$app.doc}
+    kuukan={iconEditingTarget.kuukan}
+    displayName={iconEditingTarget.displayName}
+    isStorage={iconEditingTarget.isStorage}
+    onSave={handleSaveIcon}
+    onClose={() => (iconEditingTarget = null)}
+  />
+{/if}
+
 <style>
   .kuukan-screen {
     display: flex;
@@ -733,6 +790,27 @@
     flex-shrink: 0;
   }
 
+  .thumb-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    display: inline-flex;
+    border-radius: var(--radius-small);
+    transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+  }
+
+  .thumb-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+
+  .thumb-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   .collapse-btn {
     width: 24px;
     height: 24px;
@@ -765,6 +843,8 @@
     align-items: center;
     gap: var(--space-2);
     flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .kuukan-card {
@@ -808,6 +888,12 @@
   }
 
   .kuukan-name-btn {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     border: none;
     background: transparent;
     padding: 0;
@@ -905,6 +991,10 @@
   .storage-path {
     font-size: var(--font-size-small);
     text-align: left;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .template-list {
@@ -976,7 +1066,11 @@
 
     .kuukan-title-block {
       gap: var(--space-1);
-      flex-wrap: nowrap;
+      flex-wrap: wrap;
+    }
+
+    .total-count-chip {
+      display: none;
     }
 
     .kuukan-name-btn {

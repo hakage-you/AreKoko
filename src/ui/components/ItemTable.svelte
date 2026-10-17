@@ -421,12 +421,13 @@ import type { Item } from '../../core/types';
   }
 
   .group-toggle-all-btn {
-    font-size: 11px;
+    font-size: var(--font-size-tiny);
     padding: 2px 6px;
     height: 24px;
+    min-height: 24px;
     line-height: 1;
     color: var(--text-muted);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-small);
   }
 
   .group-toggle-all-btn:hover {

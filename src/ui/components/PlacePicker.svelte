@@ -2,6 +2,7 @@
   import { autofocus } from '../actions';
   import { getApp } from '../context';
   import type { Id } from '../../core/types';
+  import { NIL_ID } from '../../core/constants';
   import { placeCandidates } from '../../core/places';
   import {
     groupPlaceTreeNodes,
@@ -9,6 +10,8 @@
     type PlaceSection,
     type PlaceSearchResult,
   } from './placeTree';
+  import KuukanThumb from './KuukanThumb.svelte';
+  import { getIndexes } from '../../core/indexes';
 
   interface Props {
     title: string;
@@ -28,6 +31,8 @@
     onClose,
   }: Props = $props();
   const app = getApp();
+
+  const indexes = $derived($app.doc ? getIndexes($app.doc) : null);
 
   // 指定がなければ現在の表示中クウカンを使用
   const effectiveActiveKuukan = $derived(activeKuukan ?? $app.view?.kuukan ?? null);
@@ -72,6 +77,23 @@
     });
   });
 
+  function getPlaceThumbInfo(placeId: Id): { kuukanId: Id; isStorage: boolean } | null {
+    if (!$app.doc || !indexes) return null;
+    if (placeId === NIL_ID) return { kuukanId: NIL_ID, isStorage: false };
+    const k = indexes.kuukanById.get(placeId);
+    if (k) return { kuukanId: k.id, isStorage: Boolean(k.owner) };
+    const a = indexes.areaById.get(placeId);
+    if (a) {
+      const parentK = indexes.kuukanById.get(a.kuukan);
+      return { kuukanId: a.kuukan, isStorage: Boolean(parentK?.owner) };
+    }
+    return null;
+  }
+
+  function handleSearchInput(e: Event) {
+    searchQuery = (e.target as HTMLInputElement).value;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       onClose();
@@ -99,9 +121,11 @@
     <div class="dialog-body picker-body">
       <div class="search-input-wrap">
         <input
+          id="place-search-input"
           use:autofocus
           type="search"
-          bind:value={searchQuery}
+          value={searchQuery}
+          oninput={handleSearchInput}
           placeholder="置き場を検索…"
           aria-label="置き場を検索"
         />
@@ -113,15 +137,26 @@
             <div class="empty muted">該当する置き場が見つかりません</div>
           {:else}
             {#each searchResults as item (item.id)}
+              {@const thumbInfo = getPlaceThumbInfo(item.id)}
               <button
                 type="button"
                 class="list-item"
                 class:active-kuukan-item={item.isActiveKuukan}
                 onclick={() => onSelect(item.id)}
               >
-                <div class="item-info">
-                  <span class="item-name">{item.name}</span>
-                  <span class="item-path muted small">{item.path}</span>
+                <div class="item-info search-item-info">
+                  {#if thumbInfo && $app.doc}
+                    <KuukanThumb
+                      doc={$app.doc}
+                      kuukanId={thumbInfo.kuukanId}
+                      isStorage={thumbInfo.isStorage}
+                      size={20}
+                    />
+                  {/if}
+                  <div class="search-item-text">
+                    <span class="item-name">{item.name}</span>
+                    <span class="item-path muted small">{item.path}</span>
+                  </div>
                 </div>
                 <div class="item-badges">
                   {#if item.isActiveKuukan}
@@ -165,6 +200,16 @@
                       }}
                     >
                       <div class="item-info">
+                        {#if node.kind === 'kuukan' || node.kind === 'unset'}
+                          <KuukanThumb
+                            doc={$app.doc}
+                            kuukanId={node.kuukanId ?? node.id}
+                            isStorage={node.isStorage}
+                            size={20}
+                          />
+                        {:else}
+                          <span class="area-tree-bullet" aria-hidden="true">└</span>
+                        {/if}
                         <span class="item-name">{node.name}</span>
                         {#if node.isStorage}
                           <span class="chip small">収納</span>
@@ -326,6 +371,34 @@
   .item-path {
     display: block;
     width: 100%;
+  }
+
+  .search-item-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .search-item-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .area-tree-bullet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: var(--text-muted);
+    font-size: var(--font-size-tiny);
+    line-height: 1;
+    user-select: none;
+    flex-shrink: 0;
   }
 
   .empty {

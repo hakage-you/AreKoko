@@ -51,6 +51,20 @@
         "name": { "type": "string" },
         "owner": { "$ref": "#/$defs/nullableId" },
         "areaLabel": { "type": "string", "description": "エリアの呼び名（例：床、段、引き出し）。省略すると「エリア」。" },
+        "icon": {
+          "type": "object",
+          "description": "クウカンのアイコン設定（一文字または組み込みSVGアイコン）",
+          "properties": {
+            "svg": {
+              "type": "string",
+              "enum": ["home", "shelf", "box", "drawer", "closet", "kitchen", "tool", "book"],
+              "description": "組み込みSVGアイコンID。"
+            },
+            "char": { "type": "string", "description": "表示する1文字（svg未指定時に使用）。" },
+            "bg": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "背景色（#rrggbb）。" },
+            "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "文字・アイコン色（#rrggbb）。" }
+          }
+        },
         "notices": { "$ref": "#/$defs/notices" }
       },
       "if": {

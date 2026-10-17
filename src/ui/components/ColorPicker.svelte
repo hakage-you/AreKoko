@@ -87,7 +87,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-lg, 0 10px 20px rgba(0,0,0,0.2));
+    box-shadow: var(--shadow);
     padding: var(--space-2);
     display: flex;
     flex-direction: column;
@@ -174,7 +174,7 @@
     height: 20px;
     padding: 0;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-small);
     cursor: pointer;
     background: transparent;
   }
@@ -185,11 +185,14 @@
 
   .custom-color-input::-webkit-color-swatch {
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-small);
   }
 
   .close-btn {
     padding: 2px 6px;
-    font-size: 11px;
+    height: 20px;
+    min-height: 20px;
+    line-height: 1;
+    font-size: var(--font-size-tiny);
   }
 </style>

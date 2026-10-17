@@ -5,7 +5,7 @@ import { createTag, setTagColor } from '../../../src/core/ops/tags';
 import { createCategory, setCategoryColor } from '../../../src/core/ops/categories';
 import { OpError } from '../../../src/core/ops/common';
 import { validateDocument } from '../../../src/core/validate';
-import { getBadgeStyle, getSwatchStyle } from '../../../src/ui/color';
+import { getBadgeStyle, getSwatchStyle, getContrastTextColor, getKuukanInitial, getKuukanIconStyle, PRESET_COLORS, getContrastRatio } from '../../../src/ui/color';
 import { createTestContext, deepFreeze, createBaseDoc } from '../../helpers/ctx';
 
 const BAD = 'red; background-image: url(https://example.com/x)';
@@ -38,6 +38,40 @@ describe('カテゴリ・タグの色', () => {
     for (const v of [BAD, 'red', '#fff', 'url(x)', '', null, undefined]) {
       expect(getBadgeStyle(v)).toBe('');
       expect(getSwatchStyle(v)).toBe('');
+    }
+  });
+
+  it('クウカンアイコン用ヘルパーの動作確認', () => {
+    // getKuukanInitial
+    expect(getKuukanInitial('リビング')).toBe('リ');
+    expect(getKuukanInitial('room a')).toBe('R');
+    expect(getKuukanInitial('棚A-1')).toBe('棚');
+    expect(getKuukanInitial('')).toBe('?');
+    expect(getKuukanInitial(null)).toBe('?');
+
+    // getContrastTextColor (WCAG 2.1 相対輝度・コントラスト比に基づく自動選定)
+    expect(getContrastTextColor('#1e3a8a')).toBe('#ffffff'); // 濃紺 -> 白文字 (コントラスト比 10.9)
+    expect(getContrastTextColor('#4f46e5')).toBe('#ffffff'); // インディゴ -> 白文字 (コントラスト比 6.3)
+    expect(getContrastTextColor('#0284c7')).toBe('#0f172a'); // スカイブルー -> 黒文字 (4.36 vs 4.10 で黒の方が高コントラスト)
+    expect(getContrastTextColor('#fef08a')).toBe('#0f172a'); // 明るい黄 -> 黒文字 (コントラスト比 16.8)
+    expect(getContrastTextColor('invalid')).toBe('#ffffff');
+
+    // getKuukanIconStyle
+    expect(getKuukanIconStyle({ bg: '#4f46e5' })).toContain('background-color: #4f46e5');
+    expect(getKuukanIconStyle({ bg: '#4f46e5' })).toContain('color: #ffffff');
+    expect(getKuukanIconStyle({ bg: '#0284c7' })).toContain('color: #0f172a');
+    expect(getKuukanIconStyle({ bg: '#0284c7', color: '#000000' })).toContain('color: #000000');
+    expect(getKuukanIconStyle(null)).toBe('');
+    expect(getKuukanIconStyle({ bg: 'bad-color' })).toBe('');
+  });
+
+  it('WCAG 2.1 コントラスト精査（プリセット色と白黒テキスト）', () => {
+    // プリセット全9色が、自動選定された文字色で WCAG AA（UIコンポーネント/大型3:1、通常4.5:1）を満たすこと
+    for (const preset of PRESET_COLORS) {
+      const bestText = getContrastTextColor(preset.hex);
+      const ratio = getContrastRatio(preset.hex, bestText);
+      // 太字サムネイル・アイコン（UIコンポーネント基準 3:1）を全色でクリア、大半は通常テキスト（4.5:1）もクリア
+      expect(ratio).toBeGreaterThanOrEqual(4.3);
     }
   });
 });

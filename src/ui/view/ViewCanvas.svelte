@@ -27,7 +27,6 @@
     removeItemDrawing,
   } from '../../core/ops/itemDrawings';
   import {
-    undrawnCounts,
     drawingOffset,
     offsetText,
     quickSearch,
@@ -149,13 +148,13 @@
     return quickSearch(doc, kuukanId, quickText);
   });
 
-  // 件数のマップ（簡易検索中は perPlace、通常時は undrawnCounts）
+  // 件数のマップ（簡易検索中のみヒット件数を表示。通常時は未描画件数を表示しない）
   const placeCounts = $derived.by((): Map<Id, number> => {
     if (!doc || !kuukanId) return new Map();
     if (quickResult) {
       return quickResult.perPlace;
     }
-    return undrawnCounts(doc, kuukanId);
+    return new Map();
   });
 
   // このクウカンに置かれているモノの描画一覧
@@ -393,6 +392,47 @@
       }
     }
     return best;
+  }
+
+  // エリア名ラベルの表示位置（マーカーとの重なりを回避しつつ、エリア境界内を厳格に維持）
+  function getAreaLabelPosition(poly: Polygon): { x: number; y: number } {
+    const rect = getTopLeftRect(poly);
+    const pad = 8 / ui.view.scale;
+    const labelH = 16 / ui.view.scale;
+    let x = rect.x0 * aspect + pad;
+    let y = rect.y0 + pad;
+
+    for (const m of markers) {
+      if (m.shape.type === 'rect') {
+        const { x: mx, y: my, w: mw, h: mh } = m.shape;
+        const overlapsTopLeft =
+          rect.x0 >= mx - 100 &&
+          rect.x0 <= mx + mw + 100 &&
+          rect.y0 >= my - 100 &&
+          rect.y0 <= my + mh + 100;
+
+        if (overlapsTopLeft) {
+          // 候補1: マーカーの下端。エリア下端（rect.y1）に収まるか？
+          const candidateY = my + mh + pad;
+          if (candidateY + labelH <= rect.y1) {
+            y = Math.max(y, candidateY);
+          } else {
+            // 候補2: マーカーの右横。エリア右端（rect.x1）に収まるか？
+            const candidateX = (mx + mw) * aspect + pad;
+            if (candidateX < rect.x1 * aspect - pad) {
+              x = Math.max(x, candidateX);
+            }
+          }
+        }
+      }
+    }
+
+    // 境界クランプガード: 必ずエリア境界矩形の内側に収め、エリア外へのはみ出しやクリップ消失を防止
+    const b = boundingRect(poly);
+    x = Math.max(b.x0 * aspect + pad, Math.min(x, b.x1 * aspect - pad));
+    y = Math.max(b.y0 + pad, Math.min(y, b.y1 - labelH));
+
+    return { x, y };
   }
 
   function areaDisplayName(nodeId: Id): string {
@@ -1147,13 +1187,20 @@
         <!-- 1. エリアの領域 -->
         <g class="areas-layer">
           {#if regions}
+            <defs>
+              {#each leafNodes as leafId (leafId)}
+                {@const poly = regions.get(leafId)}
+                {#if poly}
+                  <clipPath id="area-clip-{leafId}">
+                    <polygon points={poly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')} />
+                  </clipPath>
+                {/if}
+              {/each}
+            </defs>
             {#each leafNodes as leafId, idx}
               {@const poly = regions.get(leafId)}
               {#if poly}
                 {@const ptsStr = poly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
-                {@const rect = getTopLeftRect(poly)}
-                {@const labelX = rect.x0 * aspect + 8 / ui.view.scale}
-                {@const labelY = rect.y0 + 8 / ui.view.scale}
                 {@const isAreaHighlighted = Boolean(quickResult && (quickResult.perPlace.get(leafId) ?? 0) > 0)}
                 {@const isSelectedArea = selectedAreaId === leafId}
                 {@const isDimmed = Boolean(selectedAreaId && !isSelectedArea)}
@@ -1164,15 +1211,6 @@
                   style="fill: {isAreaHighlighted ? 'var(--accent-soft)' : AREA_FILLS[idx % AREA_FILLS.length]};"
                   vector-effect="non-scaling-stroke"
                 />
-                <text
-                  x={labelX}
-                  y={labelY}
-                  class="area-label"
-                  text-anchor="start"
-                  dominant-baseline="hanging"
-                >
-                  {areaDisplayName(leafId)}
-                </text>
               {/if}
             {/each}
           {/if}
@@ -1252,6 +1290,29 @@
           {/each}
         </g>
 
+        <!-- 4.5. エリア名ラベル（マーカーより前面に描画し埋没を防止） -->
+        <g class="area-labels-layer">
+          {#if regions}
+            {#each leafNodes as leafId}
+              {@const poly = regions.get(leafId)}
+              {#if poly}
+                {@const labelPos = getAreaLabelPosition(poly)}
+                <text
+                  x={labelPos.x}
+                  y={labelPos.y}
+                  class="area-label"
+                  clip-path="url(#area-clip-{leafId})"
+                  text-anchor="start"
+                  dominant-baseline="hanging"
+                >
+                  <title>{areaDisplayName(leafId)}</title>
+                  {areaDisplayName(leafId)}
+                </text>
+              {/if}
+            {/each}
+          {/if}
+        </g>
+
         <!-- 5. 件数表示（V4・R-B6） -->
         <g class="counts-layer">
           <!-- 分けていないエリアの件数（エリア名のすぐ下に背景つきの小さな札） -->
@@ -1261,9 +1322,9 @@
               {#if count > 0}
                 {@const poly = regions.get(leafId)}
                 {#if poly}
-                  {@const rect = getTopLeftRect(poly)}
-                  {@const badgeX = rect.x0 * aspect + 8 / ui.view.scale}
-                  {@const badgeY = rect.y0 + 8 / ui.view.scale + 20 / ui.view.scale}
+                  {@const labelPos = getAreaLabelPosition(poly)}
+                  {@const badgeX = labelPos.x}
+                  {@const badgeY = labelPos.y + 20 / ui.view.scale}
                   {@const countStr = `${count}件`}
                   {@const badgeW = (16 + countStr.length * 8) / ui.view.scale}
                   {@const badgeH = 18 / ui.view.scale}
@@ -1717,7 +1778,7 @@
           {@const selPoly = regions.get(selectedAreaId)!}
           {@const selIdx = leafNodes.indexOf(selectedAreaId)}
           {@const selPtsStr = selPoly.map((p) => `${p[0] * aspect},${p[1]}`).join(' ')}
-          {@const selRect = getTopLeftRect(selPoly)}
+          {@const selPos = getAreaLabelPosition(selPoly)}
 
           <!-- 全体をほんのり薄暗く覆う半透明ディムレイヤー -->
           <rect
@@ -1756,13 +1817,15 @@
 
           <!-- 選択エリアの名前ラベル -->
           <text
-            x={selRect.x0 * aspect + 8 / ui.view.scale}
-            y={selRect.y0 + 8 / ui.view.scale}
+            x={selPos.x}
+            y={selPos.y}
             class="area-label selected-spotlight-label"
+            clip-path="url(#area-clip-{selectedAreaId})"
             text-anchor="start"
             dominant-baseline="hanging"
             pointer-events="none"
           >
+            <title>{areaDisplayName(selectedAreaId)}</title>
             {areaDisplayName(selectedAreaId)}
           </text>
 
@@ -2251,6 +2314,10 @@
     font-weight: 600;
     pointer-events: none;
     user-select: none;
+    stroke: var(--surface);
+    stroke-width: calc(3.5px * var(--u, 1));
+    stroke-linejoin: round;
+    paint-order: stroke fill;
   }
 
   .spotlight-dim-rect {

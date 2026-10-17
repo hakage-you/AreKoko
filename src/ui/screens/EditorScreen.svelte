@@ -437,6 +437,21 @@
   }
 
   @media (max-width: 767px) {
+    .editor-header {
+      padding: var(--space-1) var(--space-2);
+      gap: var(--space-2);
+    }
+
+    .editor-header-left {
+      flex: 1 1 auto;
+      min-width: 0;
+      gap: var(--space-2);
+    }
+
+    .editor-title {
+      max-width: 160px;
+    }
+
     .editor-body {
       flex-direction: column;
       overflow-y: auto;

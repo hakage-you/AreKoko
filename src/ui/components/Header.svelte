@@ -226,10 +226,12 @@
 
   /* ファイル名は押せる（メニュー）。下線と、乗せたときの色だけで示す */
   .file-name {
+    display: block;
+    text-align: left;
     font-weight: 600;
     flex: 0 1 auto;
-    min-width: 60px;
-    max-width: 200px;
+    min-width: 48px;
+    max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -257,12 +259,13 @@
     align-items: center;
     gap: 4px;
     height: 22px;
+    min-height: 22px;
     padding: 0 var(--space-2);
     border: 1px solid var(--border);
     background: var(--surface-2);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: var(--font-size-tiny);
     cursor: pointer;
     flex-shrink: 0;
     transition: color 0.15s, background-color 0.15s, border-color 0.15s;
@@ -312,7 +315,10 @@
     border: none;
     background: transparent;
     text-align: left;
-    padding: var(--space-1) var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    min-height: 32px;
+    font-size: var(--font-size-small);
+    border-radius: var(--radius-small);
   }
 
   .file-menu button:hover {
@@ -420,7 +426,9 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    border-radius: 999px;
+    height: 32px;
+    min-height: 32px;
+    border-radius: var(--radius-pill);
     padding: 0 var(--space-3);
     font-size: var(--font-size-small);
     flex-shrink: 0;
@@ -454,6 +462,13 @@
       gap: 2px;
     }
 
+    .history-actions button {
+      min-height: 28px;
+      height: 28px;
+      padding: 0 var(--space-2);
+      font-size: var(--font-size-tiny);
+    }
+
     .file-name {
       max-width: 110px;
       min-width: 48px;
@@ -464,8 +479,12 @@
     }
 
     .help-btn {
-      padding: 0 var(--space-2);
+      width: 36px;
+      height: 36px;
       min-width: 36px;
+      min-height: 36px;
+      padding: 0;
+      border-radius: 50%;
       justify-content: center;
     }
   }
