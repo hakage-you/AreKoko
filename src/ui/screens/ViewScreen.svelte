@@ -427,7 +427,7 @@
 
   .placing-btn {
     background: var(--surface-2);
-    border: 1px solid rgba(52, 211, 153, 0.4);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
     color: var(--accent);
     display: inline-flex;
     align-items: center;
@@ -437,7 +437,7 @@
   }
 
   .placing-btn:hover {
-    background: var(--surface-3);
+    background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent);
   }

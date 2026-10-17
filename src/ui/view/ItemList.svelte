@@ -700,13 +700,13 @@
     width: 100%;
     color: var(--accent);
     background: var(--surface-2);
-    border: 1px solid rgba(52, 211, 153, 0.4);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
     font-weight: 600;
     transition: all 0.15s ease;
   }
 
   .add-btn:hover {
-    background: var(--surface-3);
+    background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent);
   }

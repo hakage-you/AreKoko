@@ -272,18 +272,6 @@
 
       <div class="kuukan-actions">
         {#if editingKuukanId !== kuukan.id}
-          <button
-            type="button"
-            class="small"
-            title="クウカンのかたちや仕切り、目印を編集します"
-            onclick={(e) => {
-              e.stopPropagation();
-              handleEditKuukan(kuukan.id);
-            }}
-          >
-            かたちを編集
-          </button>
-
           <div class="menu-container">
             <button
               type="button"
@@ -301,6 +289,14 @@
                 role="menu"
                 tabindex="-1"
               >
+                <button
+                  type="button"
+                  class="menu-item"
+                  role="menuitem"
+                  onclick={() => handleEditKuukan(kuukan.id)}
+                >
+                  かたちを編集
+                </button>
                 <button
                   type="button"
                   class="menu-item"
@@ -818,22 +814,20 @@
     min-height: auto;
     font-weight: 600;
     font-size: inherit;
-    color: var(--text);
+    color: var(--accent);
     cursor: pointer;
     text-align: left;
     border-radius: var(--radius-small);
     text-decoration: underline;
-    text-decoration-color: transparent;
     text-underline-offset: 4px;
-    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+    text-decoration-color: var(--accent);
+    transition: filter 0.15s ease;
   }
 
   .kuukan-name-btn:hover,
   .kuukan-card:hover .kuukan-name-btn {
     background: transparent;
-    color: var(--accent);
-    text-decoration: underline;
-    text-decoration-color: var(--accent);
+    filter: brightness(1.2);
   }
 
   .inline-input {
