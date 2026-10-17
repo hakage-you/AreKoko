@@ -4,6 +4,7 @@
 |---|---|
 | 作成日 | 2026-10-08 |
 | もとにした設計 | `docs/design.md`（設計）、`docs/detailed-design.md`（詳細設計 段階1〜2） |
+| デザイン原則 | `docs/ui-design-guidelines.md`（アレココ UI/UX デザイン原則・ガイドライン） |
 | 範囲 | 段階3（ファイル操作）、段階4（リストで使える版） |
 
 ---
@@ -282,10 +283,11 @@ export function buildRows(doc: ArekokoDocument, items: Item[], grouping: Groupin
 
 ### 5.0 書き方の約束
 
+- **デザイン原則の遵守**：UIの共通原則（絵文字禁止、タッチ・モバイルファースト、テーマ完全両対応、ボタン階層の競合回避、主動線と副動線の分離）は `docs/ui-design-guidelines.md` に従う。
 - **Svelte 5 のルーン**で書く：`let { a, b } = $props()`、`$state`、`$derived`、`$effect`。イベントは `onclick={...}` の属性（`on:click` は使わない）。`export let` は使わない。
 - ストアは `src/ui/context.ts` の `getApp()` で受け取る（App.svelte が `setApp` する）。状態は `$app` で読む（`const app = getApp();` の後 `$app.doc`）。
 - 文書を変えるのは `app.apply((doc, ctx) => 操作(doc, …, ctx))` だけ。画面から文書を直接書き換えない。
-- 色と余白は `src/ui/theme.css` の CSS 変数だけを使う（明るい／暗いの両方。`prefers-color-scheme`）。
+- 色と余白は `src/ui/theme.css` の CSS 変数だけを使う（明るい／暗いの両方。`prefers-color-scheme`）。特定テーマ前提のカラー値のハードコードは禁止。
 - 文言は日本語。用語は設計 4章のとおり（クウカン、モノ、置き場、未設定、サガシモノ など）。
 - 幅 768px 未満をスマホの配置とする。
 - 外部の UI ライブラリは使わない。
