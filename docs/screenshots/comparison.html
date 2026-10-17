@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>アレココ UI/UX 改善比較（Before / After）</title>
+  <style>
+    :root {
+      --bg: #121316;
+      --surface: #1a1b1f;
+      --surface-2: #24262b;
+      --surface-3: #2e3037;
+      --border: #33363f;
+      --accent: #34d399;
+      --accent-muted: rgba(52, 211, 153, 0.15);
+      --danger: #ef4444;
+      --danger-muted: rgba(239, 68, 68, 0.15);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --radius: 8px;
+      --radius-lg: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      padding: 24px;
+    }
+
+    header {
+      max-width: 1400px;
+      margin: 0 auto 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      background: var(--surface-3);
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #064e3b;
+      border-color: var(--accent);
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .section-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 40px;
+    }
+
+    .section-header {
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-before {
+      background: var(--danger-muted);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-after {
+      background: var(--accent-muted);
+      color: var(--accent);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+
+    .problem-box {
+      background: var(--surface-2);
+      border-left: 4px solid #f59e0b;
+      padding: 12px 16px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .problem-title {
+      font-weight: 700;
+      color: #fbbf24;
+      margin-bottom: 4px;
+    }
+
+    .proposals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .proposal-item {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+
+    .proposal-item.selected {
+      border-color: var(--accent);
+      background: rgba(52, 211, 153, 0.05);
+    }
+
+    .proposal-tag {
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .proposal-item.selected .proposal-tag {
+      color: var(--accent);
+    }
+
+    .adopted-badge {
+      font-size: 11px;
+      padding: 1px 6px;
+      background: var(--accent);
+      color: #064e3b;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    /* Comparison Display */
+    .view-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .view-mode-toggle {
+      display: flex;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2px;
+    }
+
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .mode-btn.active {
+      background: var(--surface-3);
+      color: var(--text);
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .comparison-single {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .image-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .image-header {
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .image-card.before .image-header {
+      background: rgba(239, 68, 68, 0.08);
+    }
+
+    .image-card.after .image-header {
+      background: rgba(52, 211, 153, 0.08);
+    }
+
+    .image-wrapper {
+      position: relative;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .image-wrapper img {
+      width: 100%;
+      height: auto;
+      display: block;
+      cursor: zoom-in;
+    }
+
+    .key-points {
+      padding: 12px 16px;
+      font-size: 13px;
+      background: var(--surface-2);
+      border-top: 1px solid var(--border);
+    }
+
+    .key-points ul {
+      padding-left: 18px;
+    }
+
+    .key-points li {
+      margin-bottom: 4px;
+    }
+
+    /* Modal for zoom */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+    }
+
+    .modal img {
+      max-width: 95vw;
+      max-height: 95vh;
+      border-radius: var(--radius);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1><span>アレココ（AreKoko）</span> UI/UX 改善結果・Before / After 比較</h1>
+    <p class="subtitle">初見ユーザー（Gemini 3.8 Flash）のブラインドレビューで浮き彫りになった課題に対する複数解決案と、サブブランチでの実装・比較検証</p>
+    
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="scrollToSection('sec-kuukan')">1. クウカン一覧（開くボタンと自動保存）</button>
+      <button class="tab-btn" onclick="scrollToSection('sec-view')">2. 閲覧画面（モノ配置ボタンとヒント整理）</button>
+      <button class="tab-btn" onclick="scrollToSection('sec-nodrawing')">3. かたちのないクウカン（案内カード）</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Section 1 -->
+    <section id="sec-kuukan" class="section-card">
+      <div class="section-header">
+        <h2 class="section-title">
+          <span>1. クウカン一覧画面</span>
+          <span class="badge badge-before">Before: 主客逆転・リロード誤認</span>
+          <span class="badge badge-after">After: 「開く」新設・安全な自動保存ピル</span>
+        </h2>
+        
+        <div class="problem-box">
+          <div class="problem-title">注意: 初見ユーザー（Flash）の指摘</div>
+          各行で最も目立つボタンが「かたちを編集」であるため、<strong>「中を見るだけなのに編集画面が開いてデータを壊してしまわないか？」</strong>と不安になる。<br>
+          また、ヘッダーの「見本.json」横にある 更新記号（回転矢印）が<strong>「再読み込みでデータが消えるのでは」</strong>と怖くて押せない。
+        </div>
+
+        <div class="proposals-grid">
+          <div class="proposal-item selected">
+            <div class="proposal-tag">
+              <span>案A（採用）</span>
+              <span class="adopted-badge">採用</span>
+            </div>
+            各行にプライマリの<strong>「開く」</strong>ボタンを新設し、<strong>「かたちを編集」</strong>は枠線のみのゴーストボタンへ降格。ヘッダーの 更新記号 を廃止し、緑のピルバッジ<strong>「自動保存」</strong>に変更。
+          </div>
+          <div class="proposal-item">
+            <div class="proposal-tag">案B</div>
+            「開く」と「かたちを編集」を同列ボタンとして並べる。自動保存はファイルメニュー内に完全格納する。
+          </div>
+          <div class="proposal-item">
+            <div class="proposal-tag">案C</div>
+            行の右端に「>」（Chevron）のみを配置し、クウカン名の文字リンクを強調する。
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-grid">
+        <div class="image-card before">
+          <div class="image-header">
+            <span>Before（修正前）</span>
+            <span class="badge badge-before">旧仕様</span>
+          </div>
+          <div class="image-wrapper">
+            <img src="before_02_kuukan_screen.png" alt="Before: クウカン一覧" onclick="zoomImage(this.src)">
+          </div>
+          <div class="key-points">
+            <ul>
+              <li>右端のボタンが「かたちを編集」単独（中を見るボタンがない）。</li>
+              <li>ヘッダーの自動保存が「更新記号（リロード風矢印）」でデータ消失の恐怖感。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="image-card after">
+          <div class="image-header">
+            <span>After（改善後）</span>
+            <span class="badge badge-after">新仕様</span>
+          </div>
+          <div class="image-wrapper">
+            <img src="02_kuukan_screen.png" alt="After: クウカン一覧" onclick="zoomImage(this.src)">
+          </div>
+          <div class="key-points">
+            <ul>
+              <li><strong>「開く」ボタンがミントグリーンで主役に！</strong> 迷わず閲覧画面へ進める。</li>
+              <li>「かたちを編集」はサブボタン（枠線のみ）になり、誤操作の恐怖を排除。</li>
+              <li>ヘッダーに <strong>「自動保存」</strong> の安心感あるピルバッジを配置。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2 -->
+    <section id="sec-view" class="section-card">
+      <div class="section-header">
+        <h2 class="section-title">
+          <span>2. クウカン閲覧画面（配置図あり）</span>
+          <span class="badge badge-before">Before: プライマリボタン2大競合・ヒント過多</span>
+          <span class="badge badge-after">After: 「モノを配置」ツール化・1文ヒント</span>
+        </h2>
+        
+        <div class="problem-box">
+          <div class="problem-title">注意: 初見ユーザー（Flash）の指摘</div>
+          右上の「モノを配置」とリスト上の「+ モノを追加」が両方ミントグリーンで並び立っており、<strong>「どちらを先に押すのか」「モノを追加しただけでは位置は決まらないのか」</strong>と操作順序に迷いが生じる。<br>
+          上部の緑ヒントバーに4つの操作ルール（絞り込み・解除・開く・配置）が詰め込まれ、覚えることが多くてプレッシャーを感じる。
+        </div>
+
+        <div class="proposals-grid">
+          <div class="proposal-item selected">
+            <div class="proposal-tag">
+              <span>案A（採用）</span>
+              <span class="adopted-badge">採用</span>
+            </div>
+            「+ モノを追加」を唯一のプライマリボタン（ミントグリーン）とし、「モノを配置」はピンアイコン付きのツールボタンスタイル（<strong>「モノを配置」</strong>）に変更。ヒントバーを最も重要な1文に絞り込み。
+          </div>
+          <div class="proposal-item">
+            <div class="proposal-tag">案B</div>
+            「モノを配置」を「配置モード」に改名。上部バーを撤廃し、エリアホバー時のツールチップに移行。
+          </div>
+          <div class="proposal-item">
+            <div class="proposal-tag">案C</div>
+            配置図の各エリア見出しに「+」ボタンを配置し、エリア直下へのインライン追加をメイン導線とする。
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-grid">
+        <div class="image-card before">
+          <div class="image-header">
+            <span>Before（修正前）</span>
+            <span class="badge badge-before">旧仕様</span>
+          </div>
+          <div class="image-wrapper">
+            <img src="before_03b_view_screen_tana_a1.png" alt="Before: クウカン閲覧画面" onclick="zoomImage(this.src)">
+          </div>
+          <div class="key-points">
+            <ul>
+              <li>右上の「モノを配置」と右ペインの「+ モノを追加」が両方ミントグリーンで競合。</li>
+              <li>上部ヒントバーが長文で4ルール詰め込み（「…上の「モ...」と見切れも発生）。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="image-card after">
+          <div class="image-header">
+            <span>After（改善後）</span>
+            <span class="badge badge-after">新仕様</span>
+          </div>
+          <div class="image-wrapper">
+            <img src="03b_view_screen_tana_a1.png" alt="After: クウカン閲覧画面" onclick="zoomImage(this.src)">
+          </div>
+          <div class="key-points">
+            <ul>
+              <li><strong>「+ モノを追加」が画面内で唯一のプライマリボタンに！</strong> 登録フローが明快。</li>
+              <li>右上のボタンは <strong>「モノを配置」</strong>（セカンダリ/ピル型）となり、図面ツールの役割が明確。</li>
+              <li>ヒントバーが <strong>「エリアを押すと、そのエリアのモノに絞り込めます」</strong> と軽快に。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3 -->
+    <section id="sec-nodrawing" class="section-card">
+      <div class="section-header">
+        <h2 class="section-title">
+          <span>3. かたちのないクウカン閲覧画面（Room A）</span>
+          <span class="badge badge-before">Before: カードが間延び・空白感</span>
+          <span class="badge badge-after">After: アイコン付与で引き締まったレイアウト</span>
+        </h2>
+        
+        <div class="problem-box">
+          <div class="problem-title">注意: 初見ユーザー（Flash）の指摘</div>
+          キャンバスのないクウカンで中央にカードがポツンと置かれており、画面全体の余白が間延びして「次に何をすべきか」の視線が定まりにくい。
+        </div>
+
+        <div class="proposals-grid">
+          <div class="proposal-item selected">
+            <div class="proposal-tag">
+              <span>案A（採用）</span>
+              <span class="adopted-badge">採用</span>
+            </div>
+            案内カードに <strong>（定規）アイコン</strong> を添えてビジュアルの重心を整え、カード自体の存在感をスマートに引き締め。
+          </div>
+          <div class="proposal-item">
+            <div class="proposal-tag">案B</div>
+            上部案内カードをヘッダー直下の薄いインフォメーションバナーにし、リストを最大幅で表示。
+          </div>
+          <div class="proposal-item">
+            <div class="proposal-tag">案C</div>
+            中央に「かたちを作る」の大きなイラストプレースホルダーを配置する。
+          </div>
+        </div>
+      </div>
+
+      <div class="comparison-grid">
+        <div class="image-card before">
+          <div class="image-header">
+            <span>Before（修正前）</span>
+            <span class="badge badge-before">旧仕様</span>
+          </div>
+          <div class="image-wrapper">
+            <img src="before_03_view_screen_room_a.png" alt="Before: かたちのないクウカン" onclick="zoomImage(this.src)">
+          </div>
+          <div class="key-points">
+            <ul>
+              <li>テキストのみのカードで、画面上部がやや間延びした印象。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="image-card after">
+          <div class="image-header">
+            <span>After（改善後）</span>
+            <span class="badge badge-after">新仕様</span>
+          </div>
+          <div class="image-wrapper">
+            <img src="03_view_screen_room_a.png" alt="After: かたちのないクウカン" onclick="zoomImage(this.src)">
+          </div>
+          <div class="key-points">
+            <ul>
+              <li><strong>アイコンが付き、カード全体が引き締まったウェルカムバナーに！</strong></li>
+              <li>下のリストエリアが自然に主役として引き立ち、意図的なリスト管理空間として洗練。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Zoom Modal -->
+  <div id="imageModal" class="modal" onclick="closeModal()">
+    <img id="modalImg" src="" alt="Zoomed view">
+  </div>
+
+  <script>
+    function scrollToSection(id) {
+      document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    function zoomImage(src) {
+      const modal = document.getElementById('imageModal');
+      const img = document.getElementById('modalImg');
+      img.src = src;
+      modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('imageModal').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

@@ -128,7 +128,7 @@
                 onclick={handleTogglePlacing}
                 title="配置図の上にモノのマーク（点や長方形）を配置・移動します"
               >
-                <span class="placing-icon" aria-hidden="true">📍</span> モノを配置
+                モノを配置
               </button>
             {/if}
           {/if}
@@ -196,7 +196,6 @@
               </div>
             {:else}
               <div class="no-drawing-card">
-                <div class="card-icon" aria-hidden="true">📐</div>
                 <div class="card-body">
                   <h3 class="card-title">このクウカンにはまだかたちがありません</h3>
                   <p class="card-desc">
@@ -399,15 +398,6 @@
     flex: 1;
   }
 
-  .no-drawing-card .card-icon {
-    font-size: 24px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0.85;
-  }
-
   .no-drawing-card .card-title {
     margin: 0 0 var(--space-1) 0;
     font-size: var(--font-size);
@@ -448,10 +438,6 @@
   .placing-btn:hover {
     background: var(--surface-3);
     border-color: var(--border-strong, var(--border));
-  }
-
-  .placing-icon {
-    font-size: 13px;
   }
 
   @media (max-width: 767.98px) {
