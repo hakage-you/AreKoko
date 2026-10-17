@@ -427,17 +427,19 @@
 
   .placing-btn {
     background: var(--surface-2);
-    border: 1px solid var(--border);
-    color: var(--text);
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    color: var(--accent);
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    font-weight: 500;
+    font-weight: 600;
+    transition: all 0.15s ease;
   }
 
   .placing-btn:hover {
     background: var(--surface-3);
-    border-color: var(--border-strong, var(--border));
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   @media (max-width: 767.98px) {

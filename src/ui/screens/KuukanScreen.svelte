@@ -274,18 +274,7 @@
         {#if editingKuukanId !== kuukan.id}
           <button
             type="button"
-            class="small primary open-kuukan-btn"
-            title="このクウカンを開いてモノを見たり追加したりします"
-            onclick={(e) => {
-              e.stopPropagation();
-              app.openView(kuukan.id);
-            }}
-          >
-            開く
-          </button>
-          <button
-            type="button"
-            class="small ghost edit-shape-btn"
+            class="small"
             title="クウカンのかたちや仕切り、目印を編集します"
             onclick={(e) => {
               e.stopPropagation();
@@ -833,11 +822,18 @@
     cursor: pointer;
     text-align: left;
     border-radius: var(--radius-small);
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 4px;
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
   }
 
-  .kuukan-name-btn:hover {
+  .kuukan-name-btn:hover,
+  .kuukan-card:hover .kuukan-name-btn {
     background: transparent;
+    color: var(--accent);
     text-decoration: underline;
+    text-decoration-color: var(--accent);
   }
 
   .inline-input {

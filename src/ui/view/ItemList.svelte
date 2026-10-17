@@ -322,7 +322,7 @@
         {:else}
           <button
             type="button"
-            class="primary small add-btn"
+            class="small add-btn"
             onclick={() => {
               isAdding = true;
               newItemName = '';
@@ -698,6 +698,17 @@
 
   .add-btn {
     width: 100%;
+    color: var(--accent);
+    background: var(--surface-2);
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+
+  .add-btn:hover {
+    background: var(--surface-3);
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .add-form {
